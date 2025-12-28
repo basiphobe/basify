@@ -1,0 +1,6 @@
+# Note: PyTorch is provided by ComfyUI - no need to install separately
+# Note: ComfyUI dependencies (comfy, folder_paths) are provided by ComfyUI itself
+
+numpy>=1.21.0
+pillow>=9.0.0
+requests>=2.25.0
