@@ -196,6 +196,10 @@ class SaveImageCustomPath:
         logger.info(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.GREEN}Saving image with custom path: {custom_folder}{Colors.ENDC}")
         global _last_image, _last_save_path
         
+        # Handle empty string from old workflows for save_text
+        if save_text == "":
+            save_text = "disable"
+        
         # Validate input is a tensor
         if not isinstance(image, torch.Tensor):
             logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Expected torch.Tensor, got {type(image)}{Colors.ENDC}")

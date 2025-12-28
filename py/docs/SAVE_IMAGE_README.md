@@ -37,16 +37,16 @@ Destination folder path. Supports dynamic variables.
 #### `filename_prefix` (STRING)
 Prefix for the saved filename. Supports variables and Python format strings.
 
-**Default:** `generated_image`
+**Default:** `generated_image_{date}_{time}`
 
 **Examples:**
 ```
-generated_image
-render_{random_number}
-portrait_{uuid}
-{date}_artwork
-image_{:06d}        # Python format: 6-digit counter (requires timestamp disabled)
-frame_{:04d}        # Python format: 4-digit counter
+generated_image_{date}_{time}  # Default with timestamp
+render_{random_number}          # With random value
+portrait_{uuid}                 # With UUID
+image_{:06d}                    # Counter mode: 000000, 000001, 000002...
+frame_{:04d}                    # Counter mode: 0000, 0001, 0002...
+{date}_img_{:03d}               # Combine timestamp and counter
 ```
 
 #### `file_extension` (DROPDOWN)
@@ -59,19 +59,6 @@ Output file format.
 - **JPG** - Smaller file size, 95% quality
 - **WEBP** - Modern format, good compression
 
-#### `use_timestamp` (DROPDOWN)
-Control filename generation mode.
-
-**Options:** `enable`, `disable`  
-**Default:** `enable`
-
-- **Enable:** Adds date and timestamp: `{prefix}_{YYYY-MM-DD}_{HH-MM-SS}.{ext}`
-- **Disable:** Uses auto-incrementing counter: `{prefix}_001.{ext}` (or custom format if using `{:Xd}`)
-
-**Counter Behavior (when disabled):**
-- Default: Auto-detects padding (minimum 3 digits, expands for 1000+ files)
-- Custom: Use Python format strings like `image_{:06d}` for explicit padding width
-
 #### `save_metadata` (DROPDOWN)
 Embed workflow metadata in the saved image.
 
@@ -79,6 +66,14 @@ Embed workflow metadata in the saved image.
 **Default:** `enable`
 
 When enabled, saves ComfyUI workflow data that allows you to load the image back into ComfyUI and recover the full workflow.
+
+#### `save_text` (DROPDOWN)
+Enable/disable text file saving.
+
+**Options:** `enable`, `disable`  
+**Default:** `disable`
+
+When enabled with `text_content`, creates a `.txt` file with the same name as the image.
 
 ### Optional Inputs
 
@@ -89,14 +84,6 @@ Text content to save alongside the image.
 **Multiline:** Yes
 
 Useful for saving prompts, descriptions, or generation parameters.
-
-#### `save_text` (DROPDOWN)
-Enable/disable text file saving.
-
-**Options:** `enable`, `disable`  
-**Default:** `disable`
-
-When enabled with `text_content`, creates a `.txt` file with the same name as the image.
 
 **Example:**
 ```
@@ -151,11 +138,11 @@ All variables can be used in both `custom_folder` and `filename_prefix`.
 
 ## Counter Formatting (Auto-Increment Mode)
 
-When `use_timestamp` is disabled, the node generates sequential filenames with auto-incrementing counters.
+When a Python format string like `{:06d}` is detected in either `custom_folder` OR `filename_prefix`, the node automatically switches to counter mode and generates sequential filenames.
 
 ### Python Format Strings
 
-Use Python format strings for explicit control over counter padding:
+Use Python format strings for explicit control over counter padding. They work in both paths and filenames:
 
 | Format | Description | Example Output |
 |--------|-------------|----------------|
@@ -166,13 +153,23 @@ Use Python format strings for explicit control over counter padding:
 
 **Example Usage:**
 ```yaml
+# Counter in filename
 filename_prefix: frame_{:06d}
-use_timestamp: disable
+custom_folder: /output/{date}
 
 Output:
-  frame_000000.png
-  frame_000001.png
-  frame_000002.png
+  /output/2025-12-28/frame_000000.png
+  /output/2025-12-28/frame_000001.png
+  /output/2025-12-28/frame_000002.png
+
+# Counter in folder path
+filename_prefix: image
+custom_folder: /output/batch_{:04d}
+
+Output:
+  /output/batch_0000/image.png
+  /output/batch_0001/image.png
+  /output/batch_0002/image.png
 ```
 
 ### Auto-Detection Mode
@@ -402,7 +399,6 @@ Each run creates a new experiment folder:
 
 ### 5. Use Counter Mode for Sequences
 ```
-use_timestamp: disable
 filename_prefix: frame_{:06d}
 
 Creates zero-padded sequential files (great for video frames):
@@ -412,8 +408,9 @@ Creates zero-padded sequential files (great for video frames):
   ...
   frame_001234.png
 
-Auto-padding (no format string):
-  frame_001.png ... frame_999.png ... frame_1000.png (auto-expands)
+Works in folders too:
+  custom_folder: /output/render_{:04d}
+  → /output/render_0000/, /output/render_0001/, etc.
 ```
 
 ### 6. Save Prompts with Text Export
