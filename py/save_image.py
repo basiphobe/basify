@@ -69,14 +69,13 @@ class SaveImageCustomPath:
                 "custom_folder": ("STRING", {
                     "default": "output/comfy/{date}",
                     "multiline": False,
-                    "tooltip": "Path with variables: {date} {time} {datetime} {timestamp} {year} {month} {day} {hour} {minute} {second} {random_number} {random_string} {uuid}\nExamples: /llm/output/{date}/{time} or /llm/output/{date}/{random_number}"
+                    "tooltip": "Path with variables: {date} {time} {datetime} {timestamp} {year} {month} {day} {hour} {minute} {second} {random_number} {random_string} {uuid}\nFormat strings work here too: folder_{:04d}\nExamples: /llm/output/{date}/{time} or /llm/output/{date}/{random_number}"
                 }),
                 "filename_prefix": ("STRING", {
-                    "default": "generated_image",
-                    "tooltip": "Supports variables: {date} {time} {random_number} etc.\nUse Python format strings like 'image_{:06d}' for custom counter padding (requires timestamp disabled)"
+                    "default": "generated_image_{date}_{time}",
+                    "tooltip": "Supports all path variables: {date} {time} {random_number} etc.\nUse Python format strings for auto-increment: frame_{:06d} or image_{:04d}\nCounter starts at 0 and increments automatically."
                 }),
                 "file_extension": (["png", "jpg", "webp"], {"default": "png"}),
-                "use_timestamp": (["enable", "disable"], {"default": "enable", "tooltip": "Enable: adds date/time to filename. Disable: uses auto-incrementing counter"}),
                 "save_metadata": (["enable", "disable"], {"default": "enable"})
             },
             "optional": {
@@ -140,6 +139,8 @@ class SaveImageCustomPath:
         - {random_string} - Random 8-character alphanumeric string (persists per session)
         - {uuid} - UUID4 first 8 characters (persists per session)
         
+        Note: Python format strings like {:06d} are preserved and handled separately during counter generation.
+        
         Args:
             path: Path string with variables to replace
             now: datetime object to use for date/time variables
@@ -191,14 +192,9 @@ class SaveImageCustomPath:
         
         return path
 
-    def save_image(self, image, custom_folder, filename_prefix, file_extension, use_timestamp, save_metadata, text_content="", save_text="disable", session_id="", prompt=None, extra_pnginfo=None, unique_id=None):
+    def save_image(self, image, custom_folder, filename_prefix, file_extension, save_metadata, text_content="", save_text="disable", session_id="", prompt=None, extra_pnginfo=None, unique_id=None):
         logger.info(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.GREEN}Saving image with custom path: {custom_folder}{Colors.ENDC}")
         global _last_image, _last_save_path
-        
-        # Validate input is a tensor
-        if not isinstance(image, torch.Tensor):
-            logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Expected torch.Tensor, got {type(image)}{Colors.ENDC}")
-            return (image, "")
         
         # Validate input is a tensor
         if not isinstance(image, torch.Tensor):
@@ -271,60 +267,60 @@ class SaveImageCustomPath:
                     with self.lock:
                         # Generate path with variable substitution
                         now = datetime.datetime.now()
-                        save_folder = self.replace_path_variables(custom_folder, now, effective_session_id)
-                        os.makedirs(save_folder, exist_ok=True)
                         
-                        # Also support variables in filename prefix
-                        filename_with_vars = self.replace_path_variables(filename_prefix, now, effective_session_id)
+                        # Process both folder and filename - check for format strings BEFORE variable replacement
+                        folder_format_match = re.search(r'\{:(\d*)d\}', custom_folder)
+                        filename_format_match = re.search(r'\{:(\d*)d\}', filename_prefix)
                         
-                        # Generate filename with batch index
-                        batch_suffix = f"_batch{batch_idx + 1}" if num_images > 1 else ""
+                        # Determine if we're using counter mode (format string anywhere in path or filename)
+                        using_counter = folder_format_match or filename_format_match
                         
-                        # Generate filename
-                        if use_timestamp == "enable":
-                            today = now.strftime('%Y-%m-%d')
-                            timestamp = now.strftime('%H-%M-%S')
-                            file_name = f"{filename_with_vars}_{today}_{timestamp}{batch_suffix}.{file_extension}"
-                        else:
-                            # Support Python format strings like {:06d} or fallback to auto-detection
-                            format_match = re.search(r'\{:(\d*)d\}', filename_with_vars)
-                            
-                            if format_match:
-                                # User provided explicit format string like {:06d}
-                                padding_width = int(format_match.group(1)) if format_match.group(1) else 0
-                                format_str = format_match.group(0)
-                                
-                                counter = 0
-                                while True:
-                                    # Replace the format string with the counter value
-                                    formatted_name = filename_with_vars.replace(format_str, str(counter).zfill(padding_width) if padding_width else str(counter))
-                                    file_name = f"{formatted_name}{batch_suffix}.{file_extension}"
-                                    file_path = os.path.join(save_folder, file_name)
-                                    if not os.path.exists(file_path):
-                                        break
-                                    counter += 1
+                        if using_counter:
+                            # Extract format details
+                            if folder_format_match:
+                                format_str = folder_format_match.group(0)
+                                padding_width = int(folder_format_match.group(1)) if folder_format_match.group(1) else 0
+                                template_folder = custom_folder
                             else:
-                                # Auto-detect needed padding based on existing files
-                                existing_files = [f for f in os.listdir(save_folder) if f.endswith(f'.{file_extension}')]
-                                max_existing = 0
-                                for f in existing_files:
-                                    # Extract numbers from filename
-                                    numbers = re.findall(r'\d+', f)
-                                    if numbers:
-                                        max_existing = max(max_existing, max(int(n) for n in numbers))
+                                format_str = filename_format_match.group(0)
+                                padding_width = int(filename_format_match.group(1)) if filename_format_match.group(1) else 0
+                                template_folder = custom_folder
+                            
+                            template_filename = filename_prefix
+                            
+                            # Find next available counter
+                            counter = 0
+                            while True:
+                                # Replace format string with counter value
+                                counter_str = str(counter).zfill(padding_width) if padding_width else str(counter)
                                 
-                                # Determine padding: use at least 3 digits, but expand if needed
-                                padding_width = max(3, len(str(max_existing + 1000)))
+                                # Apply counter to folder and filename templates
+                                current_folder = template_folder.replace(format_str, counter_str) if folder_format_match else template_folder
+                                current_filename = template_filename.replace(format_str, counter_str) if filename_format_match else template_filename
                                 
-                                counter = 1
-                                while True:
-                                    file_name = f"{filename_with_vars}_{counter:0{padding_width}d}{batch_suffix}.{file_extension}"
-                                    file_path = os.path.join(save_folder, file_name)
-                                    if not os.path.exists(file_path):
-                                        break
-                                    counter += 1
-
-                        file_path = os.path.join(save_folder, file_name)
+                                # Now do variable substitution
+                                save_folder = self.replace_path_variables(current_folder, now, effective_session_id)
+                                filename_with_vars = self.replace_path_variables(current_filename, now, effective_session_id)
+                                
+                                # Add batch suffix
+                                batch_suffix = f"_batch{batch_idx + 1}" if num_images > 1 else ""
+                                file_name = f"{filename_with_vars}{batch_suffix}.{file_extension}"
+                                file_path = os.path.join(save_folder, file_name)
+                                
+                                # Create folder if needed and check if file exists
+                                os.makedirs(save_folder, exist_ok=True)
+                                if not os.path.exists(file_path):
+                                    break
+                                counter += 1
+                        else:
+                            # No counter mode - just do variable substitution
+                            save_folder = self.replace_path_variables(custom_folder, now, effective_session_id)
+                            os.makedirs(save_folder, exist_ok=True)
+                            
+                            filename_with_vars = self.replace_path_variables(filename_prefix, now, effective_session_id)
+                            batch_suffix = f"_batch{batch_idx + 1}" if num_images > 1 else ""
+                            file_name = f"{filename_with_vars}{batch_suffix}.{file_extension}"
+                            file_path = os.path.join(save_folder, file_name)
 
                         # Save image using helper method
                         metadata_enabled = (save_metadata == "enable")
