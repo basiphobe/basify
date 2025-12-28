@@ -306,9 +306,8 @@ class SaveImageCustomPath:
                                 save_folder = self.replace_path_variables(current_folder, now, effective_session_id)
                                 filename_with_vars = self.replace_path_variables(current_filename, now, effective_session_id)
                                 
-                                # Add batch suffix
-                                batch_suffix = f"_batch{batch_idx + 1}" if num_images > 1 else ""
-                                file_name = f"{filename_with_vars}{batch_suffix}.{file_extension}"
+                                # In counter mode, don't add batch suffix - counter handles uniqueness
+                                file_name = f"{filename_with_vars}.{file_extension}"
                                 file_path = os.path.join(save_folder, file_name)
                                 
                                 # Create folder if needed and check if file exists

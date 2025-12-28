@@ -172,28 +172,26 @@ Output:
   /output/batch_0002/image.png
 ```
 
-### Auto-Detection Mode
+**Batch Processing in Counter Mode:**
+When using counter mode with batches of images, the counter increments for each individual image, not per batch. Batch suffixes are NOT added in counter mode.
 
-If no format string is provided, the node automatically determines padding width:
-- **Default:** 3 digits minimum (`001`, `002`, `003`, ...)
-- **Adaptive:** Expands when needed (at `1000` switches to `1000`, `1001`, ...)
-- **Smart:** Scans existing files to maintain consistency
-
-**Example:**
 ```yaml
-filename_prefix: image
-use_timestamp: disable
+# Batch of 3 images with counter mode
+filename_prefix: frame_{:04d}
+custom_folder: /output
 
-Output with auto-padding:
-  image_001.png
-  image_002.png
-  ...
-  image_999.png
-  image_1000.png  ← Automatically expands to 4 digits
-  image_1001.png
+Output:
+  /output/frame_0000.png  ← First image from batch
+  /output/frame_0001.png  ← Second image from batch
+  /output/frame_0002.png  ← Third image from batch
+
+# Without counter mode, batch suffix is added
+filename_prefix: image_{date}
+Output:
+  image_2025-12-28_batch1.png
+  image_2025-12-28_batch2.png
+  image_2025-12-28_batch3.png
 ```
-
-This ensures you never run out of counter space, even with large batches.
 
 ---
 

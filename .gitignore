@@ -39,3 +39,6 @@ Thumbs.db
 # User data files
 .checkpoint_selections.json
 py/.directory_states
+
+# Github
+.github/
