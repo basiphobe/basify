@@ -6,6 +6,7 @@ import threading
 import random
 import string
 import uuid
+import re
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import torch
@@ -72,10 +73,10 @@ class SaveImageCustomPath:
                 }),
                 "filename_prefix": ("STRING", {
                     "default": "generated_image",
-                    "tooltip": "Supports same variables as path: {date} {time} {random_number} etc."
+                    "tooltip": "Supports variables: {date} {time} {random_number} etc.\nUse Python format strings like 'image_{:06d}' for custom counter padding (requires timestamp disabled)"
                 }),
                 "file_extension": (["png", "jpg", "webp"], {"default": "png"}),
-                "use_timestamp": (["enable", "disable"], {"default": "enable"}),
+                "use_timestamp": (["enable", "disable"], {"default": "enable", "tooltip": "Enable: adds date/time to filename. Disable: uses auto-incrementing counter"}),
                 "save_metadata": (["enable", "disable"], {"default": "enable"})
             },
             "optional": {
@@ -285,13 +286,43 @@ class SaveImageCustomPath:
                             timestamp = now.strftime('%H-%M-%S')
                             file_name = f"{filename_with_vars}_{today}_{timestamp}{batch_suffix}.{file_extension}"
                         else:
-                            counter = 1
-                            while True:
-                                file_name = f"{filename_with_vars}_{counter:03d}{batch_suffix}.{file_extension}"
-                                file_path = os.path.join(save_folder, file_name)
-                                if not os.path.exists(file_path):
-                                    break
-                                counter += 1
+                            # Support Python format strings like {:06d} or fallback to auto-detection
+                            format_match = re.search(r'\{:(\d*)d\}', filename_with_vars)
+                            
+                            if format_match:
+                                # User provided explicit format string like {:06d}
+                                padding_width = int(format_match.group(1)) if format_match.group(1) else 0
+                                format_str = format_match.group(0)
+                                
+                                counter = 0
+                                while True:
+                                    # Replace the format string with the counter value
+                                    formatted_name = filename_with_vars.replace(format_str, str(counter).zfill(padding_width) if padding_width else str(counter))
+                                    file_name = f"{formatted_name}{batch_suffix}.{file_extension}"
+                                    file_path = os.path.join(save_folder, file_name)
+                                    if not os.path.exists(file_path):
+                                        break
+                                    counter += 1
+                            else:
+                                # Auto-detect needed padding based on existing files
+                                existing_files = [f for f in os.listdir(save_folder) if f.endswith(f'.{file_extension}')]
+                                max_existing = 0
+                                for f in existing_files:
+                                    # Extract numbers from filename
+                                    numbers = re.findall(r'\d+', f)
+                                    if numbers:
+                                        max_existing = max(max_existing, max(int(n) for n in numbers))
+                                
+                                # Determine padding: use at least 3 digits, but expand if needed
+                                padding_width = max(3, len(str(max_existing + 1000)))
+                                
+                                counter = 1
+                                while True:
+                                    file_name = f"{filename_with_vars}_{counter:0{padding_width}d}{batch_suffix}.{file_extension}"
+                                    file_path = os.path.join(save_folder, file_name)
+                                    if not os.path.exists(file_path):
+                                        break
+                                    counter += 1
 
                         file_path = os.path.join(save_folder, file_name)
 

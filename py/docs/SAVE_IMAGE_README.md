@@ -35,7 +35,7 @@ Destination folder path. Supports dynamic variables.
 ```
 
 #### `filename_prefix` (STRING)
-Prefix for the saved filename. Also supports variables.
+Prefix for the saved filename. Supports variables and Python format strings.
 
 **Default:** `generated_image`
 
@@ -45,6 +45,8 @@ generated_image
 render_{random_number}
 portrait_{uuid}
 {date}_artwork
+image_{:06d}        # Python format: 6-digit counter (requires timestamp disabled)
+frame_{:04d}        # Python format: 4-digit counter
 ```
 
 #### `file_extension` (DROPDOWN)
@@ -58,13 +60,17 @@ Output file format.
 - **WEBP** - Modern format, good compression
 
 #### `use_timestamp` (DROPDOWN)
-Add date and timestamp to filename automatically.
+Control filename generation mode.
 
 **Options:** `enable`, `disable`  
 **Default:** `enable`
 
-- **Enable:** `{prefix}_{YYYY-MM-DD}_{HH-MM-SS}.{ext}`
-- **Disable:** `{prefix}_001.{ext}` (auto-incrementing counter)
+- **Enable:** Adds date and timestamp: `{prefix}_{YYYY-MM-DD}_{HH-MM-SS}.{ext}`
+- **Disable:** Uses auto-incrementing counter: `{prefix}_001.{ext}` (or custom format if using `{:Xd}`)
+
+**Counter Behavior (when disabled):**
+- Default: Auto-detects padding (minimum 3 digits, expands for 1000+ files)
+- Custom: Use Python format strings like `image_{:06d}` for explicit padding width
 
 #### `save_metadata` (DROPDOWN)
 Embed workflow metadata in the saved image.
@@ -140,6 +146,57 @@ All variables can be used in both `custom_folder` and `filename_prefix`.
 | `{random_string}` | 8 chars | x7k2p9q4 | Lowercase alphanumeric |
 
 **Important:** Random values persist per session! See [Session Persistence](#session-persistence) below.
+
+---
+
+## Counter Formatting (Auto-Increment Mode)
+
+When `use_timestamp` is disabled, the node generates sequential filenames with auto-incrementing counters.
+
+### Python Format Strings
+
+Use Python format strings for explicit control over counter padding:
+
+| Format | Description | Example Output |
+|--------|-------------|----------------|
+| `{:04d}` | 4-digit padding | `image_0000.png`, `image_0001.png`, `image_9999.png` |
+| `{:06d}` | 6-digit padding | `image_000000.png`, `image_000001.png` |
+| `{:08d}` | 8-digit padding | `image_00000000.png`, `image_00000001.png` |
+| `{:d}` | No padding | `image_0.png`, `image_1.png`, `image_123.png` |
+
+**Example Usage:**
+```yaml
+filename_prefix: frame_{:06d}
+use_timestamp: disable
+
+Output:
+  frame_000000.png
+  frame_000001.png
+  frame_000002.png
+```
+
+### Auto-Detection Mode
+
+If no format string is provided, the node automatically determines padding width:
+- **Default:** 3 digits minimum (`001`, `002`, `003`, ...)
+- **Adaptive:** Expands when needed (at `1000` switches to `1000`, `1001`, ...)
+- **Smart:** Scans existing files to maintain consistency
+
+**Example:**
+```yaml
+filename_prefix: image
+use_timestamp: disable
+
+Output with auto-padding:
+  image_001.png
+  image_002.png
+  ...
+  image_999.png
+  image_1000.png  ← Automatically expands to 4 digits
+  image_1001.png
+```
+
+This ensures you never run out of counter space, even with large batches.
 
 ---
 
@@ -343,14 +400,20 @@ Each run creates a new experiment folder:
   /experiments/x7k2p9q4/
 ```
 
-### 5. Disable Timestamp for Manual Control
+### 5. Use Counter Mode for Sequences
 ```
 use_timestamp: disable
-filename_prefix: my_image
+filename_prefix: frame_{:06d}
 
-Creates sequential numbered files:
-  my_image_001.png
-  my_image_002.png
+Creates zero-padded sequential files (great for video frames):
+  frame_000000.png
+  frame_000001.png
+  frame_000002.png
+  ...
+  frame_001234.png
+
+Auto-padding (no format string):
+  frame_001.png ... frame_999.png ... frame_1000.png (auto-expands)
 ```
 
 ### 6. Save Prompts with Text Export
