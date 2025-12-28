@@ -76,11 +76,11 @@ class SaveImageCustomPath:
                     "tooltip": "Supports all path variables: {date} {time} {random_number} etc.\nUse Python format strings for auto-increment: frame_{:06d} or image_{:04d}\nCounter starts at 0 and increments automatically."
                 }),
                 "file_extension": (["png", "jpg", "webp"], {"default": "png"}),
-                "save_metadata": (["enable", "disable"], {"default": "enable"})
+                "save_metadata": (["enable", "disable"], {"default": "enable"}),
+                "save_text": (["enable", "disable"], {"default": "disable"}),
             },
             "optional": {
                 "text_content": ("STRING", {"default": "", "multiline": True}),
-                "save_text": (["enable", "disable"], {"default": "disable"}),
                 "session_id": ("STRING", {
                     "default": "",
                     "tooltip": "Optional: Set a custom session ID to persist random values ({uuid}, {random_number}, {random_string}) across multiple saves. Leave empty to auto-generate per node."
