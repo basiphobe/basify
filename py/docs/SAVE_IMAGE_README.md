@@ -93,15 +93,16 @@ Output:
 ```
 
 #### `session_id` (STRING)
-Custom session identifier for persisting random values.
+Custom session identifier for persisting random values across nodes within the same workflow run.
 
-**Default:** Empty (uses node's unique_id automatically)
+**Default:** Empty (generates fresh random values on each execution)
 
 **Use Cases:**
-- Share random values across multiple save nodes
-- Create consistent folder structures
-- Force new random values by changing session_id
-- Group related saves with meaningful IDs
+- Share random values across multiple save nodes in the same workflow run
+- Create consistent folder structures for nodes executed together
+- Organize related saves with meaningful IDs
+
+**Important:** When a `session_id` is provided, random values are cached and shared between nodes with the same session_id during a single workflow run. After 2+ seconds (indicating a new run), the cache is automatically cleared and fresh random values are generated. This ensures each workflow run gets a unique folder while nodes within the same run share the same values.
 
 ---
 
@@ -197,49 +198,57 @@ Output:
 
 ## Session Persistence
 
-Random variables (`{uuid}`, `{random_number}`, `{random_string}`) are automatically persisted to ensure consistent folder structures across multiple saves.
+Random variables (`{uuid}`, `{random_number}`, `{random_string}`) are automatically managed to ensure appropriate uniqueness for different workflow runs while maintaining consistency within a single run.
 
-### Automatic Persistence (Default Behavior)
+### Default Behavior (No session_id)
 
-When `session_id` is left empty, the node's internal `unique_id` is used as the session identifier.
+When `session_id` is left empty, fresh random values are generated on every execution.
 
 **Example Workflow:**
 ```
 Path: /llm/output/{date}/{uuid}
 
-Image 1 saved to: /llm/output/2025-12-27/a3f7b2c1/
-Image 2 saved to: /llm/output/2025-12-27/a3f7b2c1/  ← Same UUID!
-Image 3 saved to: /llm/output/2025-12-27/a3f7b2c1/
+Run 1: /llm/output/2025-12-27/a3f7b2c1/
+Run 2: /llm/output/2025-12-27/f8d2e9b4/  ← Different UUID!
+Run 3: /llm/output/2025-12-27/c5a1b7d3/  ← Different UUID!
 ```
 
-All images from the same node instance go to the same folder.
+Each workflow run creates a new folder.
 
-### Manual Session Control
+### With session_id (Recommended for Multi-Node Workflows)
 
-Set a custom `session_id` to control random value behavior:
+Set the same `session_id` on multiple nodes to share random values within a workflow run, while still getting unique values between runs:
 
-**Example 1: Share Random Values Across Multiple Nodes**
+**Example 1: Multiple Nodes, Same Run**
 ```
-Node A: session_id = "my_project"
-Node B: session_id = "my_project"
+Node A: session_id = "my_workflow"
+Node B: session_id = "my_workflow"
+Path: /llm/output/{uuid}
 
-Both nodes will use the same {uuid}, {random_number}, etc.
+Run 1:
+  Node A saves to: /llm/output/a3f7b2c1/
+  Node B saves to: /llm/output/a3f7b2c1/  ← Same UUID (same run)
+
+[2+ seconds pass, workflow runs again]
+
+Run 2:
+  Node A saves to: /llm/output/f8d2e9b4/  ← New UUID (new run)
+  Node B saves to: /llm/output/f8d2e9b4/  ← Same as Node A (same run)
 ```
 
-**Example 2: Force New Random Values**
-```
-First workflow: session_id = "batch_1"
-Second workflow: session_id = "batch_2"
+**How It Works:**
+- Nodes with the same `session_id` share random values if executed within 2 seconds
+- After 2+ seconds without execution, cached values are cleared
+- Next execution generates fresh random values
+- This pattern works perfectly with auto-run/instant-run workflows
 
-Different session_ids = different random values
+**Example 2: Organized Project Structure**
 ```
+session_id = "portrait_series"
+Path: /projects/{session_id}/{uuid}/{date}
 
-**Example 3: Organized Project Structure**
-```
-session_id = "portrait_series_2025"
-Path: /projects/{session_id}/{date}/{uuid}
-
-Result: /projects/portrait_series_2025/2025-12-27/a3f7b2c1/
+Run 1: /projects/portrait_series/a3f7b2c1/2025-12-27/
+Run 2: /projects/portrait_series/f8d2e9b4/2025-12-27/
 ```
 
 ---

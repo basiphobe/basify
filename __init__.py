@@ -19,6 +19,9 @@ from .py.directory_checkpoint_scanner import NODE_DISPLAY_NAME_MAPPINGS as direc
 from .py.directory_auto_iterator import NODE_CLASS_MAPPINGS as directory_auto_iterator_nodes
 from .py.directory_auto_iterator import NODE_DISPLAY_NAME_MAPPINGS as directory_auto_iterator_display
 
+from .py.ollama_node import NODE_CLASS_MAPPINGS as ollama_nodes
+from .py.ollama_node import NODE_DISPLAY_NAME_MAPPINGS as ollama_display
+
 # Import routes to register web endpoints (no exports needed)
 from .py import routes  # noqa: F401
 
@@ -28,7 +31,8 @@ NODE_CLASS_MAPPINGS = {
     **wildcard_nodes,
     **latent_generator_nodes,
     **directory_scanner_nodes,
-    **directory_auto_iterator_nodes
+    **directory_auto_iterator_nodes,
+    **ollama_nodes
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -37,7 +41,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **wildcard_display,
     **latent_generator_display,
     **directory_scanner_display,
-    **directory_auto_iterator_display
+    **directory_auto_iterator_display,
+    **ollama_display
 }
 
 # Add the directory to the web (i.e client, i.e. javascript) extensions

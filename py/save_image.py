@@ -58,8 +58,10 @@ async def process_prompt_response(request):
 class SaveImageCustomPath:
     """ComfyUI node for saving images with customizable paths and filenames."""
     lock = threading.Lock()
-    # Store random values per workflow session to ensure consistency
+    # Store random values per workflow session to ensure consistency within a run
     _session_values = {}
+    # Track last execution time to detect new runs
+    _last_execution_time = {}
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -205,9 +207,26 @@ class SaveImageCustomPath:
             logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Expected torch.Tensor, got {type(image)}{Colors.ENDC}")
             return (image, "")
         
-        # Use unique_id as session_id if no custom session_id provided
-        # This ensures all images from the same node instance use the same random values
-        effective_session_id = session_id if session_id else (unique_id if unique_id else None)
+        # Detect new workflow runs by checking if enough time has passed (>2 seconds indicates new run)
+        # This allows multiple nodes in same run to share values, but different runs get fresh values
+        current_time = datetime.datetime.now().timestamp()
+        time_threshold = 2.0  # seconds
+        
+        if session_id:
+            last_time = SaveImageCustomPath._last_execution_time.get(session_id, 0)
+            time_diff = current_time - last_time
+            
+            # If too much time passed, clear cached values for this session (indicates new run)
+            if time_diff > time_threshold:
+                if session_id in SaveImageCustomPath._session_values:
+                    del SaveImageCustomPath._session_values[session_id]
+            
+            # Update last execution time
+            SaveImageCustomPath._last_execution_time[session_id] = current_time
+            effective_session_id = session_id
+        else:
+            # No session_id: generate fresh values every time
+            effective_session_id = None
         
         saved_paths = []
         save_array = None  # Initialize to avoid potential unbound variable
