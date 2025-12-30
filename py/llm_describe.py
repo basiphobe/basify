@@ -71,13 +71,10 @@ class DescribeImage:
             pil_image.save(buffered, format="JPEG")
             img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
             
-            # Clean up image objects immediately after encoding
+            # Close image objects immediately after encoding
             buffered.close()
-            buffered = None
             pil_image.close()
-            pil_image = None
-            del img_array
-            img_array = None
+            # Don't delete or set to None - let finally block handle cleanup
             
             prompt = """
                 DO describe the content of the image in detail. 
@@ -102,8 +99,7 @@ class DescribeImage:
                 }
             }
             
-            # Clean up base64 string after adding to payload
-            del img_str
+            # Don't delete here - let finally block handle cleanup
             
             logger.info(f"{loggerName} Sending request to Ollama server...")
             
@@ -148,13 +144,21 @@ class DescribeImage:
             return (image, f"Error generating description: {str(e)}")
         
         finally:
-            # Clean up any remaining objects
-            if buffered is not None:
-                buffered.close()
-            if pil_image is not None:
-                pil_image.close()
-            if img_array is not None:
+            # Clean up any remaining objects - use try/except since del removes from namespace
+            try:
+                if buffered is not None:
+                    buffered.close()
+            except (NameError, UnboundLocalError):
+                pass
+            try:
+                if pil_image is not None:
+                    pil_image.close()
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del img_array
+            except (NameError, UnboundLocalError):
+                pass
 
 NODE_CLASS_MAPPINGS = {
     "BasifyDescribeImage": DescribeImage

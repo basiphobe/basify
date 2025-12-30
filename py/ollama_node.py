@@ -79,10 +79,7 @@ class OllamaProcess:
             response_obj = client._client.generate(**generate_args)
             response = response_obj.response if response_obj else "No response received"
             
-            # Clean up response object immediately after extracting response
-            del response_obj
-            del generate_args
-            del options
+            # Don't delete here - let finally block handle cleanup
             
             # Unload model and cleanup after processing
             client.unload_model(model)
@@ -94,13 +91,19 @@ class OllamaProcess:
             logger.error(f"[{loggerName}] {Colors.RED}Error processing text: {str(e)}{Colors.ENDC}")
             return (f"Error processing text: {str(e)}",)
         finally:
-            # Ensure cleanup even on error
-            if response_obj is not None:
+            # Ensure cleanup even on error - use try/except since del removes from namespace
+            try:
                 del response_obj
-            if generate_args is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del generate_args
-            if options is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del options
+            except (NameError, UnboundLocalError):
+                pass
 
 
 NODE_CLASS_MAPPINGS = {

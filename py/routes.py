@@ -61,15 +61,9 @@ async def scan_directory_for_checkpoints(request):
             
             logger.info(f"{Colors.BLUE}[BASIFY Routes]{Colors.ENDC} {Colors.GREEN}Found {len(checkpoints)} checkpoints in {directory_path}{Colors.ENDC}")
             
-            # Store result before cleanup
-            result = web.json_response({"checkpoints": checkpoints})
+            # Don't delete here - let finally block handle cleanup
             
-            # Clean up large data structures
-            del checkpoints
-            del visited_paths
-            del payload
-            
-            return result
+            return web.json_response({"checkpoints": checkpoints})
             
         except PermissionError as e:
             logger.warning(f"{Colors.BLUE}[BASIFY Routes]{Colors.ENDC} {Colors.YELLOW}Permission denied scanning {directory_path}: {e}{Colors.ENDC}")
@@ -82,13 +76,19 @@ async def scan_directory_for_checkpoints(request):
         logger.error(f"{Colors.BLUE}[BASIFY Routes]{Colors.ENDC} {Colors.RED}Error in scan_directory_for_checkpoints: {e}{Colors.ENDC}")
         return web.json_response({"error": str(e)}, status=500)
     finally:
-        # Ensure cleanup even on error
-        if checkpoints is not None:
+        # Ensure cleanup even on error - use try/except since del removes from namespace
+        try:
             del checkpoints
-        if visited_paths is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del visited_paths
-        if payload is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del payload
+        except (NameError, UnboundLocalError):
+            pass
 
 server.PromptServer.instance.app.add_routes([
     web.post("/basify/scan_directory", scan_directory_for_checkpoints),

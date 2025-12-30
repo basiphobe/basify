@@ -103,8 +103,7 @@ class MetadataViewer:
                     if filtered_values and node_title and node_title not in result:
                         result[node_title] = filtered_values
             
-            # Clean up large intermediate objects
-            del sorted_nodes
+            # Don't delete here - let finally block handle cleanup
             
             return result
 
@@ -115,9 +114,11 @@ class MetadataViewer:
             logger.error(f"{Colors.RED}[BASIFY] Unexpected error parsing workflow: {e}{Colors.ENDC}")
             return {}
         finally:
-            # Ensure cleanup even on error
-            if sorted_nodes is not None:
+            # Ensure cleanup even on error - use try/except since del removes from namespace
+            try:
                 del sorted_nodes
+            except (NameError, UnboundLocalError):
+                pass
 
 NODE_CLASS_MAPPINGS = {
     "BasifyMetadataViewer": MetadataViewer

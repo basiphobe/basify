@@ -80,15 +80,12 @@ def get_random_line_from_wildcard(wildcard_name, base_dir=None, force_refresh=No
             
             random_line = lines[random_index]
             
-            # Clean up entropy strings
-            del entropy_string
-            del entropy_hash
+            # Don't delete here - let finally block handle cleanup
         else:
             # Standard random selection
             random_line = random.choice(lines)
         
-        # Clean up lines list
-        del lines
+        # Don't delete here - let finally block handle cleanup
             
         logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Selected from {wildcard_name}: {random_line[:30]}...{Colors.ENDC}" if len(random_line) > 30 else f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Selected from {wildcard_name}: {random_line}{Colors.ENDC}")
         
@@ -98,13 +95,19 @@ def get_random_line_from_wildcard(wildcard_name, base_dir=None, force_refresh=No
         logger.error(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.RED}Error processing wildcard file {wildcard_path}: {str(e)}{Colors.ENDC}")
         return f"__{wildcard_name.replace('.txt', '')}__"
     finally:
-        # Ensure cleanup even on error
-        if lines is not None:
+        # Ensure cleanup even on error - use try/except since del removes from namespace
+        try:
             del lines
-        if entropy_string is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del entropy_string
-        if entropy_hash is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del entropy_hash
+        except (NameError, UnboundLocalError):
+            pass
 
 def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_refresh=None, used_replacements=None, max_attempts=50):
     """
@@ -181,11 +184,7 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
                 
                 random_line = available_lines[random_index]
                 
-                # Clean up entropy strings in loop
-                del entropy_string
-                del entropy_hash
-                entropy_string = None
-                entropy_hash = None
+                # Don't delete in loop - let finally block handle cleanup
             else:
                 # Standard random selection
                 random_line = random.choice(available_lines)
@@ -194,9 +193,7 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
             if random_line not in used_replacements:
                 logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Selected unique line from {wildcard_name}: {random_line[:30]}...{Colors.ENDC}" if len(random_line) > 30 else f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Selected unique line from {wildcard_name}: {random_line}{Colors.ENDC}")
                 
-                # Clean up before returning
-                del lines
-                del available_lines
+                # Don't delete here - let finally block handle cleanup
                 
                 return random_line
         
@@ -204,9 +201,7 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
         logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}Could not find unique replacement after {max_attempts} attempts, returning duplicate{Colors.ENDC}")
         result = random.choice(lines)
         
-        # Clean up before returning
-        del lines
-        del available_lines
+        # Don't delete here - let finally block handle cleanup
         
         return result
         
@@ -214,15 +209,23 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
         logger.error(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.RED}Error processing wildcard file {wildcard_path}: {str(e)}{Colors.ENDC}")
         return f"__{wildcard_name.replace('.txt', '')}__"
     finally:
-        # Ensure cleanup even on error
-        if lines is not None:
+        # Ensure cleanup even on error - use try/except since del removes from namespace
+        try:
             del lines
-        if available_lines is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del available_lines
-        if entropy_string is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del entropy_string
-        if entropy_hash is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del entropy_hash
+        except (NameError, UnboundLocalError):
+            pass
 
 def process_wildcards_in_text(text, base_dir=None, force_refresh=None):
     """
@@ -270,14 +273,16 @@ def process_wildcards_in_text(text, base_dir=None, force_refresh=None):
             # Replace this specific occurrence
             processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
         
-        # Clean up before returning
-        del matches
-        del used_replacements
+        # Don't delete here - let finally block handle cleanup
         
         return processed_text
     finally:
-        # Ensure cleanup even on error
-        if matches is not None:
+        # Ensure cleanup even on error - use try/except since del removes from namespace
+        try:
             del matches
-        if used_replacements is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del used_replacements
+        except (NameError, UnboundLocalError):
+            pass

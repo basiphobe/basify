@@ -146,15 +146,17 @@ def _cleanup_cache():
             
             logger.debug(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} Cleaned up cache, removed {len(keys_to_remove)} entries")
             
-            # Clean up intermediate collections
-            del keys_to_remove
-            del keys_to_keep
+            # Don't delete here - let finally block handle cleanup
     finally:
-        # Ensure cleanup even on error
-        if keys_to_remove is not None:
+        # Ensure cleanup even on error - use try/except since del removes from namespace
+        try:
             del keys_to_remove
-        if keys_to_keep is not None:
+        except (NameError, UnboundLocalError):
+            pass
+        try:
             del keys_to_keep
+        except (NameError, UnboundLocalError):
+            pass
 
 def get_latest_wildcard_output():
     """
