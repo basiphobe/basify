@@ -5,7 +5,7 @@ A powerful ComfyUI node for saving images with dynamic paths, customizable filen
 ## Features
 
 - **Dynamic Path Variables** - Use variables in folder paths and filenames
-- **Session Persistence** - Keep random values consistent across multiple saves
+- **UUID Daisy-Chaining** - Chain nodes together to share folder paths
 - **Batch Processing** - Automatically handles multiple images
 - **Metadata Embedding** - Preserve workflow information in saved files
 - **Thread-Safe** - Prevents file conflicts in concurrent workflows
@@ -92,17 +92,22 @@ Output:
   - image.txt
 ```
 
-#### `session_id` (STRING)
-Custom session identifier for persisting random values across nodes within the same workflow run.
+#### `session_uuid` (STRING)
+UUID from a previous save node to share the same folder path.
 
-**Default:** Empty (generates fresh random values on each execution)
+**Default:** Empty (generates a new random UUID)
 
 **Use Cases:**
-- Share random values across multiple save nodes in the same workflow run
-- Create consistent folder structures for nodes executed together
-- Organize related saves with meaningful IDs
+- Chain multiple save nodes to save to the same folder
+- Connect to the `uuid` output of another save node
+- Creates consistent folder structures across multiple nodes in a workflow
 
-**Important:** When a `session_id` is provided, random values are cached and shared between nodes with the same session_id during a single workflow run. After 2+ seconds (indicating a new run), the cache is automatically cleared and fresh random values are generated. This ensures each workflow run gets a unique folder while nodes within the same run share the same values.
+**How to Use:**
+1. Leave empty on the first save node → it generates a new UUID
+2. Connect the `uuid` output to the `session_uuid` input of the next save node
+3. Both nodes will use the same UUID in their folder paths
+
+**⚠️ Important:** Do NOT manually enter the same UUID value across different workflow runs, as this will cause files to be overwritten. Always let the first node generate a fresh UUID, then connect it to subsequent nodes.
 
 ---
 
@@ -125,15 +130,15 @@ All variables can be used in both `custom_folder` and `filename_prefix`.
 | `{minute}` | MM | 30 | Current minute |
 | `{second}` | SS | 45 | Current second |
 
-### Random Variables (Persisted per Session)
+### Random Variables
 
 | Variable | Format | Example | Description |
 |----------|--------|---------|-------------|
-| `{uuid}` | 8 characters | a3f7b2c1 | First 8 chars of UUID4 |
-| `{random_number}` | 6 digits | 847592 | Random number (100000-999999) |
-| `{random_string}` | 8 chars | x7k2p9q4 | Lowercase alphanumeric |
+| `{uuid}` | 8 characters | a3f7b2c1 | First 8 chars of UUID4 (fresh per node unless chained) |
+| `{random_number}` | 6 digits | 847592 | Random number (100000-999999), fresh per execution |
+| `{random_string}` | 8 chars | x7k2p9q4 | Lowercase alphanumeric, fresh per execution |
 
-**Important:** Random values persist per session! See [Session Persistence](#session-persistence) below.
+**Note:** To share `{uuid}` values between nodes, use the UUID daisy-chain feature (see [UUID Daisy-Chaining](#uuid-daisy-chaining) below).
 
 ---
 
@@ -196,59 +201,62 @@ Output:
 
 ---
 
-## Session Persistence
+## UUID Daisy-Chaining
 
-Random variables (`{uuid}`, `{random_number}`, `{random_string}`) are automatically managed to ensure appropriate uniqueness for different workflow runs while maintaining consistency within a single run.
+The node outputs a `uuid` value that can be connected to other save nodes, allowing multiple nodes to save to the same folder while maintaining unique filenames.
 
-### Default Behavior (No session_id)
+### How It Works
 
-When `session_id` is left empty, fresh random values are generated on every execution.
-
-**Example Workflow:**
+**Workflow Setup:**
 ```
-Path: /llm/output/{date}/{uuid}
-
-Run 1: /llm/output/2025-12-27/a3f7b2c1/
-Run 2: /llm/output/2025-12-27/f8d2e9b4/  ← Different UUID!
-Run 3: /llm/output/2025-12-27/c5a1b7d3/  ← Different UUID!
-```
-
-Each workflow run creates a new folder.
-
-### With session_id (Recommended for Multi-Node Workflows)
-
-Set the same `session_id` on multiple nodes to share random values within a workflow run, while still getting unique values between runs:
-
-**Example 1: Multiple Nodes, Same Run**
-```
-Node A: session_id = "my_workflow"
-Node B: session_id = "my_workflow"
-Path: /llm/output/{uuid}
-
-Run 1:
-  Node A saves to: /llm/output/a3f7b2c1/
-  Node B saves to: /llm/output/a3f7b2c1/  ← Same UUID (same run)
-
-[2+ seconds pass, workflow runs again]
-
-Run 2:
-  Node A saves to: /llm/output/f8d2e9b4/  ← New UUID (new run)
-  Node B saves to: /llm/output/f8d2e9b4/  ← Same as Node A (same run)
+KSampler A → Save Node A (session_uuid: empty)
+                  ↓
+             uuid output: "a3f7b2c1"
+                  ↓
+KSampler B → Save Node B (session_uuid: connected to Save Node A's uuid)
+                  ↓
+             uuid output: "a3f7b2c1" (same)
 ```
 
-**How It Works:**
-- Nodes with the same `session_id` share random values if executed within 2 seconds
-- After 2+ seconds without execution, cached values are cleared
-- Next execution generates fresh random values
-- This pattern works perfectly with auto-run/instant-run workflows
+**Result:**
+- Both nodes use UUID `a3f7b2c1` in their folder paths
+- Both save to: `/llm/output/comfy/frames/a3f7b2c1/`
+- Filenames remain unique (different random values), so no overwriting occurs
 
-**Example 2: Organized Project Structure**
+**Next Workflow Run:**
+- Save Node A generates a new UUID: `f8d2e9b4`
+- Save Node B receives and uses the new UUID: `f8d2e9b4`  
+- New folder: `/llm/output/comfy/frames/f8d2e9b4/`
+
+### Best Practices
+
+**✅ DO:**
+- Leave `session_uuid` empty on the first save node
+- Connect `uuid` outputs to `session_uuid` inputs to chain nodes
+- Let each workflow run generate its own fresh UUID
+
+**❌ DON'T:**
+- Manually enter UUID values (causes overwrites between runs)
+- Reuse the same UUID string across different workflow runs
+- Break the chain if you want nodes to share a folder
+
+### Example: Multi-Node Workflow
+
 ```
-session_id = "portrait_series"
-Path: /projects/{session_id}/{uuid}/{date}
+Load Model → KSampler A → Save Node A (generates UUID)
+                              ↓ uuid: "abc123"
+                              ↓
+          → KSampler B → Save Node B (uses "abc123")
+                              ↓ uuid: "abc123"
+                              ↓
+          → KSampler C → Save Node C (uses "abc123")
+                              ↓ uuid: "abc123"
 
-Run 1: /projects/portrait_series/a3f7b2c1/2025-12-27/
-Run 2: /projects/portrait_series/f8d2e9b4/2025-12-27/
+All nodes save to: /output/{uuid}/
+Result: /output/abc123/
+  - node_a_frame_001.png
+  - node_b_frame_001.png
+  - node_c_frame_001.png
 ```
 
 ---
@@ -372,10 +380,10 @@ The path output can be used by downstream nodes for further processing.
 
 ## Tips & Best Practices
 
-### 1. Use Session IDs for Multi-Node Consistency
+### 1. Use UUID Daisy-Chaining for Multi-Node Workflows
 ```
-Set the same session_id on all save nodes in a workflow to ensure 
-they all use the same {uuid} and save to the same folder structure.
+Connect the uuid output of the first save node to the session_uuid input
+of subsequent nodes to ensure they all save to the same folder.
 ```
 
 ### 2. Organize by Date for Easy Management
@@ -433,8 +441,11 @@ for reference and documentation.
 
 ## Troubleshooting
 
-### Issue: Random values change every save
-**Solution:** Make sure you're using the same node instance, or set a custom `session_id`.
+### Issue: Need multiple nodes to save to the same folder
+**Solution:** Use UUID daisy-chaining: connect the `uuid` output of the first save node to the `session_uuid` input of subsequent nodes.
+
+### Issue: Files being overwritten on different runs
+**Solution:** Do NOT manually enter the same UUID value in `session_uuid` across runs. Always let the first node generate a fresh UUID, then connect it to other nodes.
 
 ### Issue: Folder not created
 **Solution:** Ensure the parent directory exists and you have write permissions. The node creates folders recursively but needs permission.
@@ -461,6 +472,7 @@ for reference and documentation.
 
 ## Version History
 
+- **v3.0** - Replaced session caching with UUID daisy-chaining for explicit workflow control
 - **v2.1** - Optimized code, removed unused methods, fixed workflow drag-and-drop support
 - **v2.0** - Added dynamic path variables and session persistence
 - **v1.0** - Initial release with custom paths and metadata support

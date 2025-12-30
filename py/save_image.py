@@ -58,10 +58,6 @@ async def process_prompt_response(request):
 class SaveImageCustomPath:
     """ComfyUI node for saving images with customizable paths and filenames."""
     lock = threading.Lock()
-    # Store random values per workflow session to ensure consistency within a run
-    _session_values = {}
-    # Track last execution time to detect new runs
-    _last_execution_time = {}
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -83,9 +79,9 @@ class SaveImageCustomPath:
             },
             "optional": {
                 "text_content": ("STRING", {"default": "", "multiline": True}),
-                "session_id": ("STRING", {
+                "session_uuid": ("STRING", {
                     "default": "",
-                    "tooltip": "Optional: Set a custom session ID to persist random values ({uuid}, {random_number}, {random_string}) across multiple saves. Leave empty to auto-generate per node."
+                    "tooltip": "Optional: UUID from a previous save node to share the same folder. Leave empty to generate a new UUID. Connect this to the 'uuid' output of another save node to daisy-chain."
                 })
             },
             "hidden": {
@@ -95,11 +91,11 @@ class SaveImageCustomPath:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "STRING",)
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING",)
     FUNCTION = "save_image"
     CATEGORY = "basify"
     OUTPUT_NODE = True
-    RETURN_NAMES = ("image", "saved_path",)
+    RETURN_NAMES = ("image", "saved_path", "uuid",)
 
     @staticmethod
     def _save_image_file(image_to_save, file_path, file_extension, metadata_enabled, prompt=None, extra_pnginfo=None):
@@ -123,7 +119,7 @@ class SaveImageCustomPath:
             image_to_save.save(file_path)
 
     @staticmethod
-    def replace_path_variables(path, now=None, session_id=None):
+    def replace_path_variables(path, now=None, uuid_value=None):
         """Replace all dynamic variables in the path string.
         
         Supported variables:
@@ -137,40 +133,24 @@ class SaveImageCustomPath:
         - {hour} - Current hour (HH)
         - {minute} - Current minute (MM)
         - {second} - Current second (SS)
-        - {random_number} - Random 6-digit number (persists per session)
-        - {random_string} - Random 8-character alphanumeric string (persists per session)
-        - {uuid} - UUID4 first 8 characters (persists per session)
+        - {random_number} - Random 6-digit number
+        - {random_string} - Random 8-character alphanumeric string
+        - {uuid} - UUID4 first 8 characters (or provided uuid_value)
         
         Note: Python format strings like {:06d} are preserved and handled separately during counter generation.
         
         Args:
             path: Path string with variables to replace
             now: datetime object to use for date/time variables
-            session_id: Session ID for persisting random values
+            uuid_value: Optional UUID value to use for {uuid} token
         """
         if now is None:
             now = datetime.datetime.now()
         
-        # Use session_id to retrieve or generate random values
-        if session_id and session_id in SaveImageCustomPath._session_values:
-            # Reuse existing session values
-            session_data = SaveImageCustomPath._session_values[session_id]
-            random_number = session_data['random_number']
-            random_string = session_data['random_string']
-            uuid_string = session_data['uuid']
-        else:
-            # Generate new random values
-            random_number = random.randint(100000, 999999)
-            random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-            uuid_string = str(uuid.uuid4())[:8]
-            
-            # Store for this session if session_id provided
-            if session_id:
-                SaveImageCustomPath._session_values[session_id] = {
-                    'random_number': random_number,
-                    'random_string': random_string,
-                    'uuid': uuid_string
-                }
+        # Generate random values (fresh each time unless uuid_value provided)
+        random_number = random.randint(100000, 999999)
+        random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        uuid_string = uuid_value if uuid_value else str(uuid.uuid4())[:8]
         
         # Replace all variables
         replacements = {
@@ -194,7 +174,7 @@ class SaveImageCustomPath:
         
         return path
 
-    def save_image(self, image, custom_folder, filename_prefix, file_extension, save_metadata, text_content="", save_text="disable", session_id="", prompt=None, extra_pnginfo=None, unique_id=None):
+    def save_image(self, image, custom_folder, filename_prefix, file_extension, save_metadata, text_content="", save_text="disable", session_uuid="", prompt=None, extra_pnginfo=None, unique_id=None):
         logger.info(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.GREEN}Saving image with custom path: {custom_folder}{Colors.ENDC}")
         global _last_image, _last_save_path
         
@@ -205,28 +185,13 @@ class SaveImageCustomPath:
         # Validate input is a tensor
         if not isinstance(image, torch.Tensor):
             logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Expected torch.Tensor, got {type(image)}{Colors.ENDC}")
-            return (image, "")
+            return (image, "", "")
         
-        # Detect new workflow runs by checking if enough time has passed (>2 seconds indicates new run)
-        # This allows multiple nodes in same run to share values, but different runs get fresh values
-        current_time = datetime.datetime.now().timestamp()
-        time_threshold = 2.0  # seconds
-        
-        if session_id:
-            last_time = SaveImageCustomPath._last_execution_time.get(session_id, 0)
-            time_diff = current_time - last_time
-            
-            # If too much time passed, clear cached values for this session (indicates new run)
-            if time_diff > time_threshold:
-                if session_id in SaveImageCustomPath._session_values:
-                    del SaveImageCustomPath._session_values[session_id]
-            
-            # Update last execution time
-            SaveImageCustomPath._last_execution_time[session_id] = current_time
-            effective_session_id = session_id
+        # Use provided session_uuid or generate a new one
+        if session_uuid and session_uuid.strip():
+            folder_uuid = session_uuid.strip()
         else:
-            # No session_id: generate fresh values every time
-            effective_session_id = None
+            folder_uuid = str(uuid.uuid4())[:8]
         
         saved_paths = []
         save_array = None  # Initialize to avoid potential unbound variable
@@ -322,8 +287,9 @@ class SaveImageCustomPath:
                                 current_filename = template_filename.replace(format_str, counter_str) if filename_format_match else template_filename
                                 
                                 # Now do variable substitution
-                                save_folder = self.replace_path_variables(current_folder, now, effective_session_id)
-                                filename_with_vars = self.replace_path_variables(current_filename, now, effective_session_id)
+                                # Use folder_uuid for folder (to group nodes), None for filename (to keep unique per node)
+                                save_folder = self.replace_path_variables(current_folder, now, folder_uuid)
+                                filename_with_vars = self.replace_path_variables(current_filename, now, None)
                                 
                                 # In counter mode, don't add batch suffix - counter handles uniqueness
                                 file_name = f"{filename_with_vars}.{file_extension}"
@@ -336,10 +302,11 @@ class SaveImageCustomPath:
                                 counter += 1
                         else:
                             # No counter mode - just do variable substitution
-                            save_folder = self.replace_path_variables(custom_folder, now, effective_session_id)
+                            # Use folder_uuid for folder (to group nodes), None for filename (to keep unique per node)
+                            save_folder = self.replace_path_variables(custom_folder, now, folder_uuid)
                             os.makedirs(save_folder, exist_ok=True)
                             
-                            filename_with_vars = self.replace_path_variables(filename_prefix, now, effective_session_id)
+                            filename_with_vars = self.replace_path_variables(filename_prefix, now, None)
                             batch_suffix = f"_batch{batch_idx + 1}" if num_images > 1 else ""
                             file_name = f"{filename_with_vars}{batch_suffix}.{file_extension}"
                             file_path = os.path.join(save_folder, file_name)
@@ -373,12 +340,12 @@ class SaveImageCustomPath:
                 _last_image = save_array
                 _last_save_path = saved_paths[-1]
             
-            # Return the original image tensor and all saved paths
-            return (image, ";".join(saved_paths))
+            # Return the original image tensor, all saved paths, and the UUID used
+            return (image, ";".join(saved_paths), folder_uuid)
             
         except Exception as e:
             logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Error in batch processing: {str(e)}{Colors.ENDC}")
-            return (image, "")
+            return (image, "", "")
 
 NODE_CLASS_MAPPINGS = {
     "BasifySaveImage": SaveImageCustomPath
