@@ -86,9 +86,6 @@ class LatentGenerator:
         # Determine width and height based on mode
         if resolution_mode == "predefined":
             # Parse predefined resolution (format: "width×height (aspect) - description")
-            resolution_part = predefined_resolution.split(" ")[0]  # Get "width×height" part
-            width_str, height_str = resolution_part.split("×")
-            width = int(width_str)
             try:
                 resolution_part = predefined_resolution.split(" ")[0]  # Get "width×height" part
                 width_str, height_str = resolution_part.split("×")
@@ -101,14 +98,23 @@ class LatentGenerator:
             width = manual_width
             height = manual_height
         
-        # Get device at runtime for better flexibility
-        device = comfy.model_management.intermediate_device()
+        try:
+            # Get device at runtime for better flexibility
+            device = comfy.model_management.intermediate_device()
+            
+            # Generate latent tensor
+            # Standard latent format: [batch_size, channels, height//8, width//8]
+            latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=device)
+            
+            return ({"samples": latent}, width, height)
         
-        # Generate latent tensor
-        # Standard latent format: [batch_size, channels, height//8, width//8]
-        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=device)
-        
-        return ({"samples": latent}, width, height)
+        except Exception as e:
+            # Clean up and force garbage collection on error
+            import gc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            raise e
 
 # Registration
 NODE_CLASS_MAPPINGS = {

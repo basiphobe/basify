@@ -223,6 +223,9 @@ class DirectoryCheckpointScanner:
             
         except Exception as e:
             logger.error(f"Failed to load checkpoint {full_checkpoint_path}: {e}")
+            # Explicitly clean up any partially loaded objects
+            import gc
+            gc.collect()
             return (None, None, None, "")
 
 

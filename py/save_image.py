@@ -25,23 +25,13 @@ class Colors:
 
 logger = logging.getLogger(__name__)
 
-_last_image = None
-_last_save_path = None
-
 # Create a response queue
 response_queue = queue.Queue()
 
 @server.PromptServer.instance.routes.post("/basify/server/llm/save_again")
 async def save_again(request):
-    try:
-        if _last_image is None or _last_save_path is None:
-            return web.json_response({"status": "error", "message": "No image to re-save."})
-        # Re-save the last image
-        Image.fromarray(_last_image).save(_last_save_path)
-        return web.json_response({"status": "success"})
-    except Exception as e:
-        logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Error re-saving image: {str(e)}{Colors.ENDC}")
-        return web.json_response({"status": "error", "message": str(e)})
+    # This endpoint is deprecated - was causing memory leaks
+    return web.json_response({"status": "error", "message": "save_again endpoint is deprecated"})
 
 @server.PromptServer.instance.routes.post("/basify/server/llm/prompt_request")
 async def process_prompt_response(request):
@@ -176,7 +166,6 @@ class SaveImageCustomPath:
 
     def save_image(self, image, custom_folder, filename_prefix, file_extension, save_metadata, text_content="", save_text="disable", session_uuid="", prompt=None, extra_pnginfo=None, unique_id=None):
         logger.info(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.GREEN}Saving image with custom path: {custom_folder}{Colors.ENDC}")
-        global _last_image, _last_save_path
         
         # Handle empty string from old workflows for save_text
         if save_text == "":
@@ -227,8 +216,6 @@ class SaveImageCustomPath:
                     else:
                         logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Unexpected tensor shape: {original_shape}{Colors.ENDC}")
                         continue
-
-                    save_array = current_tensor.squeeze().numpy()
 
                     save_array = current_tensor.squeeze().numpy()
 
@@ -334,11 +321,11 @@ class SaveImageCustomPath:
                 except Exception as e:
                     logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Error saving batch image {batch_idx}: {str(e)}{Colors.ENDC}")
                     continue  # Continue to next image instead of returning
-                
-            # Store last successfully saved image and path
-            if saved_paths:
-                _last_image = save_array
-                _last_save_path = saved_paths[-1]
+            
+            # Explicitly delete large arrays to free memory
+            del save_tensor
+            if save_array is not None:
+                del save_array
             
             # Return the original image tensor, all saved paths, and the UUID used
             return (image, ";".join(saved_paths), folder_uuid)

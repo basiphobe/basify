@@ -41,6 +41,10 @@ class DescribeImage:
         }
 
     def describe_image(self, image, model, server_url, temperature=0.7, max_tokens=500):
+        buffered = None
+        pil_image = None
+        img_array = None
+        
         try:
             logger.info(f"{loggerName} Processing image with model: {model}")
             
@@ -67,6 +71,14 @@ class DescribeImage:
             pil_image.save(buffered, format="JPEG")
             img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
             
+            # Clean up image objects immediately after encoding
+            buffered.close()
+            buffered = None
+            pil_image.close()
+            pil_image = None
+            del img_array
+            img_array = None
+            
             prompt = """
                 DO describe the content of the image in detail. 
                 DO return only a single description of the image. 
@@ -90,6 +102,9 @@ class DescribeImage:
                 }
             }
             
+            # Clean up base64 string after adding to payload
+            del img_str
+            
             logger.info(f"{loggerName} Sending request to Ollama server...")
             
             # Call the Ollama API
@@ -98,6 +113,8 @@ class DescribeImage:
             
             # Parse the response
             result = response.json()
+            response.close()  # Close the response connection
+            
             if not result:
                 logger.warning(f"{loggerName} Empty response from Ollama server")
                 description = 'No description generated'
@@ -119,6 +136,7 @@ class DescribeImage:
                 }
                 unload_response = requests.post(server_url, json=unload_payload, timeout=5)
                 unload_response.raise_for_status()
+                unload_response.close()
                 logger.info(f"{loggerName} Successfully unloaded model: {model}")
             except Exception as unload_error:
                 logger.warning(f"{loggerName} {Colors.YELLOW}Failed to unload model {model}: {str(unload_error)}{Colors.ENDC}")
@@ -128,6 +146,15 @@ class DescribeImage:
         except Exception as e:
             logger.error(f"{Colors.RED}[BASIFY] Error in image description: {str(e)}{Colors.ENDC}")
             return (image, f"Error generating description: {str(e)}")
+        
+        finally:
+            # Clean up any remaining objects
+            if buffered is not None:
+                buffered.close()
+            if pil_image is not None:
+                pil_image.close()
+            if img_array is not None:
+                del img_array
 
 NODE_CLASS_MAPPINGS = {
     "BasifyDescribeImage": DescribeImage

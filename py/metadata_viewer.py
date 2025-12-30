@@ -48,10 +48,22 @@ class MetadataViewer:
             "nodes": nodes
         }
         
+        # Clean up large intermediate objects
+        del metadata
+        del workflow_data
+        del nodes
+        
         # Return properly formatted JSON string that will work with metadata embedding
-        return (json.dumps(display_metadata, indent=None, ensure_ascii=False),)
+        result = json.dumps(display_metadata, indent=None, ensure_ascii=False)
+        del display_metadata
+        
+        return (result,)
 
     def parse_workflow_nodes(self, workflow_json):
+        workflow_data = None
+        nodes = None
+        sorted_nodes = None
+        
         try:
             # Convert string to JSON if needed
             if isinstance(workflow_json, str):
@@ -91,6 +103,9 @@ class MetadataViewer:
                     if filtered_values and node_title and node_title not in result:
                         result[node_title] = filtered_values
             
+            # Clean up large intermediate objects
+            del sorted_nodes
+            
             return result
 
         except (json.JSONDecodeError, AttributeError, TypeError) as e:
@@ -99,6 +114,10 @@ class MetadataViewer:
         except Exception as e:
             logger.error(f"{Colors.RED}[BASIFY] Unexpected error parsing workflow: {e}{Colors.ENDC}")
             return {}
+        finally:
+            # Ensure cleanup even on error
+            if sorted_nodes is not None:
+                del sorted_nodes
 
 NODE_CLASS_MAPPINGS = {
     "BasifyMetadataViewer": MetadataViewer

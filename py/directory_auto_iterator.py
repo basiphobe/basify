@@ -106,6 +106,8 @@ class DirectoryAutoIterator:
     
     def load_image_as_tensor(self, image_path):
         """Load an image file and convert it to ComfyUI tensor format."""
+        img = None
+        image_pil = None
         try:
             # Load image using PIL
             img = Image.open(image_path)
@@ -114,25 +116,38 @@ class DirectoryAutoIterator:
             img = ImageOps.exif_transpose(img)
             
             # Convert to RGB if necessary
-            image = img.convert("RGB")
+            image_pil = img.convert("RGB")
             
             # Convert to numpy array and normalize
-            image_np = np.array(image).astype(np.float32) / 255.0
+            image_np = np.array(image_pil).astype(np.float32) / 255.0
             
             # Convert to tensor with shape [1, H, W, 3] (batch, height, width, channels)
-            image = torch.from_numpy(image_np)[None,]
+            image_tensor = torch.from_numpy(image_np)[None,]
             
             # Create mask (for compatibility with Load Image node)
             if 'A' in img.getbands():
                 mask_np = np.array(img.getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask_np)
+                mask_tensor = 1. - torch.from_numpy(mask_np)
+                del mask_np
             else:
-                mask = torch.zeros((image_np.shape[0], image_np.shape[1]), dtype=torch.float32)
+                mask_tensor = torch.zeros((image_np.shape[0], image_np.shape[1]), dtype=torch.float32)
             
-            return image, mask
+            # Clean up intermediate objects
+            del image_np
+            if image_pil is not None:
+                image_pil.close()
+            if img is not None:
+                img.close()
+            
+            return image_tensor, mask_tensor
             
         except Exception as e:
             print(f"Error loading image {image_path}: {str(e)}")
+            # Clean up on error
+            if image_pil is not None:
+                image_pil.close()
+            if img is not None:
+                img.close()
             return None, None
     
     @classmethod
@@ -230,13 +245,16 @@ class DirectoryAutoIterator:
                 continue
             
             # Try to load the image
-            image, mask = self.load_image_as_tensor(attempt_path)
-            if image is not None:
+            loaded_image, loaded_mask = self.load_image_as_tensor(attempt_path)
+            if loaded_image is not None:
                 # Successfully loaded
                 current_image_path = attempt_path
                 filename = os.path.basename(attempt_path)
                 # Mark as processed
                 processed_files.add(current_image_path)
+                # Assign to final variables only when successful
+                image = loaded_image
+                mask = loaded_mask
                 break
             else:
                 # Failed to load, mark as processed and try next
