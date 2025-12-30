@@ -43,10 +43,6 @@ class OllamaClient:
                     ]
 
                     self._models = sorted(filtered_models, key=str.casefold)
-                    
-                    # Clean up intermediate lists
-                    del all_models
-                    del filtered_models
 
                     if not self._models:
                         logger.warning(f"[{loggerName}] {Colors.YELLOW}No models found!{Colors.ENDC}")
@@ -57,10 +53,14 @@ class OllamaClient:
                     self._models = [f"Error filtering models: {str(e)}"]
         finally:
             # Ensure cleanup even on error
-            if all_models is not None:
+            try:
                 del all_models
-            if filtered_models is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del filtered_models
+            except (NameError, UnboundLocalError):
+                pass
 
     def parse_model_info(self, model_info: dict) -> dict:
         details_dict = None
@@ -161,10 +161,6 @@ class OllamaClient:
             
             # Call the Ollama API to unload the model
             response = self._client.generate(**payload)
-            
-            # Clean up
-            del payload
-            del response
 
             logger.info(f"{loggerName} {Colors.BLUE}Successfully unloaded model: {model_name}{Colors.ENDC}")
             
@@ -174,10 +170,14 @@ class OllamaClient:
             return False
         finally:
             # Ensure cleanup even on error
-            if payload is not None:
+            try:
                 del payload
-            if response is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del response
+            except (NameError, UnboundLocalError):
+                pass
         
     def format_model_prompt(self, template, system_prompt, user_prompt):
         context = None
