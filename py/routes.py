@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 async def scan_directory_for_checkpoints(request):
     """API endpoint to scan a directory for checkpoint files"""
+    payload = None
+    checkpoints = None
+    visited_paths = None
+    
     try:
         payload = await request.json()
         directory_path = payload.get("directory_path", "")
@@ -23,10 +27,6 @@ async def scan_directory_for_checkpoints(request):
         
         if not os.path.exists(directory_path):
             return web.json_response({"checkpoints": []})
-        
-        checkpoint_extensions = ('.ckpt', '.safetensors', '.pt', '.pth')
-        checkpoints = []
-        visited_paths = set()  # Track visited paths to prevent circular symlink issues
         
         checkpoint_extensions = ('.ckpt', '.safetensors', '.pt', '.pth')
         checkpoints = []
@@ -60,7 +60,16 @@ async def scan_directory_for_checkpoints(request):
             checkpoints.sort()
             
             logger.info(f"{Colors.BLUE}[BASIFY Routes]{Colors.ENDC} {Colors.GREEN}Found {len(checkpoints)} checkpoints in {directory_path}{Colors.ENDC}")
-            return web.json_response({"checkpoints": checkpoints})
+            
+            # Store result before cleanup
+            result = web.json_response({"checkpoints": checkpoints})
+            
+            # Clean up large data structures
+            del checkpoints
+            del visited_paths
+            del payload
+            
+            return result
             
         except PermissionError as e:
             logger.warning(f"{Colors.BLUE}[BASIFY Routes]{Colors.ENDC} {Colors.YELLOW}Permission denied scanning {directory_path}: {e}{Colors.ENDC}")
@@ -72,6 +81,14 @@ async def scan_directory_for_checkpoints(request):
     except Exception as e:
         logger.error(f"{Colors.BLUE}[BASIFY Routes]{Colors.ENDC} {Colors.RED}Error in scan_directory_for_checkpoints: {e}{Colors.ENDC}")
         return web.json_response({"error": str(e)}, status=500)
+    finally:
+        # Ensure cleanup even on error
+        if checkpoints is not None:
+            del checkpoints
+        if visited_paths is not None:
+            del visited_paths
+        if payload is not None:
+            del payload
 
 server.PromptServer.instance.app.add_routes([
     web.post("/basify/scan_directory", scan_directory_for_checkpoints),

@@ -124,22 +124,37 @@ class WildcardProcessor:
 def _cleanup_cache():
     """Clean up old cache entries to prevent unbounded growth."""
     global _wildcard_output_cache
+    keys_to_keep = None
+    keys_to_remove = None
     
-    if len(_wildcard_output_cache) > _MAX_CACHE_SIZE:
-        # Keep only the "latest" entry and node-specific entries (non-timestamp keys)
-        keys_to_keep = {"latest"}
-        
-        # Keep node ID entries (they don't start with "latest_")
-        for key in list(_wildcard_output_cache.keys()):
-            if not str(key).startswith("latest_"):
-                keys_to_keep.add(key)
-        
-        # Remove timestamp-based entries
-        keys_to_remove = [k for k in _wildcard_output_cache.keys() if k not in keys_to_keep]
-        for key in keys_to_remove:
-            del _wildcard_output_cache[key]
-        
-        logger.debug(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} Cleaned up cache, removed {len(keys_to_remove)} entries")
+    try:
+        if len(_wildcard_output_cache) > _MAX_CACHE_SIZE:
+            # Keep only the "latest" entry and node-specific entries (non-timestamp keys)
+            keys_to_keep = {"latest"}
+            
+            # Keep node ID entries (they don't start with "latest_")
+            for key in list(_wildcard_output_cache.keys()):
+                if not str(key).startswith("latest_"):
+                    keys_to_keep.add(key)
+            
+            # Remove timestamp-based entries
+            keys_to_remove = [k for k in _wildcard_output_cache.keys() if k not in keys_to_keep]
+            
+            # Explicitly delete cached values before removing keys
+            for key in keys_to_remove:
+                del _wildcard_output_cache[key]
+            
+            logger.debug(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} Cleaned up cache, removed {len(keys_to_remove)} entries")
+            
+            # Clean up intermediate collections
+            del keys_to_remove
+            del keys_to_keep
+    finally:
+        # Ensure cleanup even on error
+        if keys_to_remove is not None:
+            del keys_to_remove
+        if keys_to_keep is not None:
+            del keys_to_keep
 
 def get_latest_wildcard_output():
     """

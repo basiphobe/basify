@@ -31,21 +31,25 @@ def get_random_line_from_wildcard(wildcard_name, base_dir=None, force_refresh=No
     Returns:
         str: A randomly selected line from the wildcard file, or the original wildcard token if error
     """
-    # Default to the root wildcards directory if no base_dir provided
-    if not base_dir:
-        comfyui_root = Path(__file__).parent.parent.parent.parent  # Go up to ComfyUI root
-        base_dir = comfyui_root / "wildcards"  # Default wildcards directory
-    else:
-        base_dir = Path(base_dir)
-    
-    # Ensure wildcard_name is clean and has .txt extension
-    wildcard_name = wildcard_name.strip()
-    if not wildcard_name.endswith('.txt'):
-        wildcard_name = f"{wildcard_name}.txt"
-    
-    wildcard_path = base_dir / wildcard_name
+    lines = None
+    entropy_string = None
+    entropy_hash = None
     
     try:
+        # Default to the root wildcards directory if no base_dir provided
+        if not base_dir:
+            comfyui_root = Path(__file__).parent.parent.parent.parent  # Go up to ComfyUI root
+            base_dir = comfyui_root / "wildcards"  # Default wildcards directory
+        else:
+            base_dir = Path(base_dir)
+        
+        # Ensure wildcard_name is clean and has .txt extension
+        wildcard_name = wildcard_name.strip()
+        if not wildcard_name.endswith('.txt'):
+            wildcard_name = f"{wildcard_name}.txt"
+        
+        wildcard_path = base_dir / wildcard_name
+        
         # Check if file exists
         if not wildcard_path.exists():
             logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}Wildcard file not found: {wildcard_path}{Colors.ENDC}")
@@ -75,9 +79,16 @@ def get_random_line_from_wildcard(wildcard_name, base_dir=None, force_refresh=No
             random_index = (random_index + random.randint(0, len(lines) - 1)) % len(lines)
             
             random_line = lines[random_index]
+            
+            # Clean up entropy strings
+            del entropy_string
+            del entropy_hash
         else:
             # Standard random selection
             random_line = random.choice(lines)
+        
+        # Clean up lines list
+        del lines
             
         logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Selected from {wildcard_name}: {random_line[:30]}...{Colors.ENDC}" if len(random_line) > 30 else f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Selected from {wildcard_name}: {random_line}{Colors.ENDC}")
         
@@ -86,6 +97,14 @@ def get_random_line_from_wildcard(wildcard_name, base_dir=None, force_refresh=No
     except Exception as e:
         logger.error(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.RED}Error processing wildcard file {wildcard_path}: {str(e)}{Colors.ENDC}")
         return f"__{wildcard_name.replace('.txt', '')}__"
+    finally:
+        # Ensure cleanup even on error
+        if lines is not None:
+            del lines
+        if entropy_string is not None:
+            del entropy_string
+        if entropy_hash is not None:
+            del entropy_hash
 
 def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_refresh=None, used_replacements=None, max_attempts=50):
     """
@@ -101,24 +120,29 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
     Returns:
         str: A randomly selected line that hasn't been used yet, or fallback to any line if all are used
     """
-    if used_replacements is None:
-        used_replacements = set()
-    
-    # Default to the root wildcards directory if no base_dir provided
-    if not base_dir:
-        comfyui_root = Path(__file__).parent.parent.parent.parent  # Go up to ComfyUI root
-        base_dir = comfyui_root / "wildcards"  # Default wildcards directory
-    else:
-        base_dir = Path(base_dir)
-    
-    # Ensure wildcard_name is clean and has .txt extension
-    wildcard_name = wildcard_name.strip()
-    if not wildcard_name.endswith('.txt'):
-        wildcard_name = f"{wildcard_name}.txt"
-    
-    wildcard_path = base_dir / wildcard_name
+    lines = None
+    available_lines = None
+    entropy_string = None
+    entropy_hash = None
     
     try:
+        if used_replacements is None:
+            used_replacements = set()
+        
+        # Default to the root wildcards directory if no base_dir provided
+        if not base_dir:
+            comfyui_root = Path(__file__).parent.parent.parent.parent  # Go up to ComfyUI root
+            base_dir = comfyui_root / "wildcards"  # Default wildcards directory
+        else:
+            base_dir = Path(base_dir)
+        
+        # Ensure wildcard_name is clean and has .txt extension
+        wildcard_name = wildcard_name.strip()
+        if not wildcard_name.endswith('.txt'):
+            wildcard_name = f"{wildcard_name}.txt"
+        
+        wildcard_path = base_dir / wildcard_name
+        
         # Check if file exists
         if not wildcard_path.exists():
             logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}Wildcard file not found: {wildcard_path}{Colors.ENDC}")
@@ -156,6 +180,12 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
                 random_index = (random_index + random.randint(0, len(available_lines) - 1)) % len(available_lines)
                 
                 random_line = available_lines[random_index]
+                
+                # Clean up entropy strings in loop
+                del entropy_string
+                del entropy_hash
+                entropy_string = None
+                entropy_hash = None
             else:
                 # Standard random selection
                 random_line = random.choice(available_lines)
@@ -163,15 +193,36 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
             # If this line hasn't been used, return it
             if random_line not in used_replacements:
                 logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Selected unique line from {wildcard_name}: {random_line[:30]}...{Colors.ENDC}" if len(random_line) > 30 else f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Selected unique line from {wildcard_name}: {random_line}{Colors.ENDC}")
+                
+                # Clean up before returning
+                del lines
+                del available_lines
+                
                 return random_line
         
         # If we couldn't find a unique line after max_attempts, just return a random one
         logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}Could not find unique replacement after {max_attempts} attempts, returning duplicate{Colors.ENDC}")
-        return random.choice(lines)
+        result = random.choice(lines)
+        
+        # Clean up before returning
+        del lines
+        del available_lines
+        
+        return result
         
     except Exception as e:
         logger.error(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.RED}Error processing wildcard file {wildcard_path}: {str(e)}{Colors.ENDC}")
         return f"__{wildcard_name.replace('.txt', '')}__"
+    finally:
+        # Ensure cleanup even on error
+        if lines is not None:
+            del lines
+        if available_lines is not None:
+            del available_lines
+        if entropy_string is not None:
+            del entropy_string
+        if entropy_hash is not None:
+            del entropy_hash
 
 def process_wildcards_in_text(text, base_dir=None, force_refresh=None):
     """
@@ -185,34 +236,48 @@ def process_wildcards_in_text(text, base_dir=None, force_refresh=None):
     Returns:
         str: Text with wildcard tokens replaced by random lines
     """
-    if not text:
-        return text
+    matches = None
+    used_replacements = None
     
-    # Find all wildcard tokens using pre-compiled pattern
-    matches = list(WILDCARD_PATTERN.finditer(text))
-    
-    if not matches:
-        return text
-    
-    logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(matches)} wildcard token occurrences to process{Colors.ENDC}")
-    
-    # Track used replacements to avoid duplicates
-    used_replacements = set()
-    
-    # Process each token occurrence individually for unique replacements
-    processed_text = text
-    
-    # Process from the end to avoid position shifts during replacement
-    for match in reversed(matches):
-        token = match.group(1)
-        start_pos = match.start()
-        end_pos = match.end()
+    try:
+        if not text:
+            return text
         
-        # Get unique replacement for each individual occurrence
-        replacement = get_unique_replacement_from_wildcard(token, base_dir, force_refresh, used_replacements)
-        used_replacements.add(replacement)
+        # Find all wildcard tokens using pre-compiled pattern
+        matches = list(WILDCARD_PATTERN.finditer(text))
         
-        # Replace this specific occurrence
-        processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
-    
-    return processed_text
+        if not matches:
+            return text
+        
+        logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(matches)} wildcard token occurrences to process{Colors.ENDC}")
+        
+        # Track used replacements to avoid duplicates
+        used_replacements = set()
+        
+        # Process each token occurrence individually for unique replacements
+        processed_text = text
+        
+        # Process from the end to avoid position shifts during replacement
+        for match in reversed(matches):
+            token = match.group(1)
+            start_pos = match.start()
+            end_pos = match.end()
+            
+            # Get unique replacement for each individual occurrence
+            replacement = get_unique_replacement_from_wildcard(token, base_dir, force_refresh, used_replacements)
+            used_replacements.add(replacement)
+            
+            # Replace this specific occurrence
+            processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
+        
+        # Clean up before returning
+        del matches
+        del used_replacements
+        
+        return processed_text
+    finally:
+        # Ensure cleanup even on error
+        if matches is not None:
+            del matches
+        if used_replacements is not None:
+            del used_replacements

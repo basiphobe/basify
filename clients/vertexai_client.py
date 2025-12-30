@@ -37,26 +37,44 @@ class VertexAIClient:
         self._client = aiplatform.ModelServiceClient()
 
     def filter_models(self):
-        if self._models is None:
-            try:
-                logger.info(f"[{loggerName}] {Colors.GREEN}Fetching VertexAI models...{Colors.ENDC}")
-                
-                request = self._client.ListModelsRequest(parent=self._parent)
-                all_models = self._client.list_models(request=request)
-                # Filter for relevant GPT models
-                filtered_models = [
-                    model.display_name for model in all_models
-                ]
-
-                self._models = filtered_models
-                
-                if not self._models:
-                    logger.warning(f"[{loggerName}] {Colors.YELLOW}No models found!{Colors.ENDC}")
-                    self._models = ["No models found!"]
+        request = None
+        all_models = None
+        filtered_models = None
+        
+        try:
+            if self._models is None:
+                try:
+                    logger.info(f"[{loggerName}] {Colors.GREEN}Fetching VertexAI models...{Colors.ENDC}")
                     
-            except Exception as e:
-                logger.error(f"[{loggerName}] {Colors.RED}Error filtering models: {str(e)}{Colors.ENDC}")
-                self._models = [f"Error filtering models: {str(e)}"]    # end filter_models
+                    request = self._client.ListModelsRequest(parent=self._parent)
+                    all_models = self._client.list_models(request=request)
+                    # Filter for relevant GPT models
+                    filtered_models = [
+                        model.display_name for model in all_models
+                    ]
+
+                    self._models = filtered_models
+                    
+                    # Clean up intermediate objects
+                    del request
+                    del all_models
+                    del filtered_models
+                    
+                    if not self._models:
+                        logger.warning(f"[{loggerName}] {Colors.YELLOW}No models found!{Colors.ENDC}")
+                        self._models = ["No models found!"]
+                        
+                except Exception as e:
+                    logger.error(f"[{loggerName}] {Colors.RED}Error filtering models: {str(e)}{Colors.ENDC}")
+                    self._models = [f"Error filtering models: {str(e)}"]
+        finally:
+            # Ensure cleanup even on error
+            if request is not None:
+                del request
+            if all_models is not None:
+                del all_models
+            if filtered_models is not None:
+                del filtered_models
 
     def _load_system_prompt(self, isCreative=True):
         try:
@@ -75,6 +93,7 @@ class VertexAIClient:
         logger.info(f"[{loggerName}] {Colors.GREEN}Processing template with model: {Colors.YELLOW}{model}{Colors.ENDC}")
         system_prompt = self._load_system_prompt(prompt_style)
         system_prompt = system_prompt.replace('%word_limit%', str(word_limit))
+        params = None
 
         try:
             # Build parameters based on which mode is being used
@@ -92,10 +111,20 @@ class VertexAIClient:
                 
             # This is a placeholder since the actual API implementation is not complete
             logger.info(f"[{loggerName}] {Colors.GREEN}API parameters: {params}{Colors.ENDC}")
+            
+            # Clean up before returning
+            del system_prompt
+            del params
+            
             return ""
+            
         except Exception as e:
             logger.error(f"[{loggerName}] {Colors.RED}Error processing template: {str(e)}{Colors.ENDC}")
             return f"Error processing template: {str(e)}"
+        finally:
+            # Ensure cleanup even on error
+            if params is not None:
+                del params
 
 _vertexai_client = None
 def vertexai_client():

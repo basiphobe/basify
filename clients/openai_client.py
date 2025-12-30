@@ -36,37 +36,51 @@ class OpenAIClient:
     # end __init__
 
     def filter_models(self):
-        if self._models is None:
-            try:
-                logger.info(f"[{loggerName}] {Colors.GREEN}Fetching OpenAI models...{Colors.ENDC}")
-                all_models = self._client.models.list()
-                # Filter for relevant GPT models
-                filtered_models = [
-                    model.id for model in all_models
-                    if (
-                        model.id.startswith('gpt') and  # Only GPT models
-                        not any(suffix in model.id for suffix in [
-                            'instruct',     # Instruction-specific models
-                            'audio',        # Audio-specific models
-                            'realtime',     # Realtime models
-                            '-0',           # Dated versions like gpt-4-0613
-                            '-1',           # Dated versions like gpt-4-1106
-                            '-2',           # Future dated versions
-                            'preview'       # Preview models
-                        ])
-                    )
+        all_models = None
+        filtered_models = None
+        
+        try:
+            if self._models is None:
+                try:
+                    logger.info(f"[{loggerName}] {Colors.GREEN}Fetching OpenAI models...{Colors.ENDC}")
+                    all_models = self._client.models.list()
+                    # Filter for relevant GPT models
+                    filtered_models = [
+                        model.id for model in all_models
+                        if (
+                            model.id.startswith('gpt') and  # Only GPT models
+                            not any(suffix in model.id for suffix in [
+                                'instruct',     # Instruction-specific models
+                                'audio',        # Audio-specific models
+                                'realtime',     # Realtime models
+                                '-0',           # Dated versions like gpt-4-0613
+                                '-1',           # Dated versions like gpt-4-1106
+                                '-2',           # Future dated versions
+                                'preview'       # Preview models
+                            ])
+                        )
 
-                ]
+                    ]
 
-                self._models = filtered_models
-                
-                if not self._models:
-                    logger.warning(f"[{loggerName}] {Colors.YELLOW}No models found!{Colors.ENDC}")
-                    self._models = ["No models found!"]
+                    self._models = filtered_models
                     
-            except Exception as e:
-                logger.error(f"[{loggerName}] {Colors.RED}Error filtering models: {str(e)}{Colors.ENDC}")
-                self._models = [f"Error filtering models: {str(e)}"]
+                    # Clean up intermediate lists
+                    del all_models
+                    del filtered_models
+                    
+                    if not self._models:
+                        logger.warning(f"[{loggerName}] {Colors.YELLOW}No models found!{Colors.ENDC}")
+                        self._models = ["No models found!"]
+                        
+                except Exception as e:
+                    logger.error(f"[{loggerName}] {Colors.RED}Error filtering models: {str(e)}{Colors.ENDC}")
+                    self._models = [f"Error filtering models: {str(e)}"]
+        finally:
+            # Ensure cleanup even on error
+            if all_models is not None:
+                del all_models
+            if filtered_models is not None:
+                del filtered_models
     # end filter_models
 
     def _load_system_prompt(self, isCreative=True):
@@ -86,13 +100,16 @@ class OpenAIClient:
         logger.info(f"[{loggerName}] {Colors.GREEN}Processing template with model: {Colors.YELLOW}{model}{Colors.ENDC}")
         system_prompt = self._load_system_prompt(prompt_style)
         system_prompt = system_prompt.replace('%word_limit%', str(word_limit))
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": template}
-        ]
+        messages = None
+        create_params = None
+        response = None
 
         try:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": template}
+            ]
+
             # Prepare parameters for the API call
             create_params = {
                 "model": model,
@@ -112,10 +129,29 @@ class OpenAIClient:
             
             response = self._client.chat.completions.create(**create_params)
             logger.info(f"[{loggerName}] {Colors.GREEN}Successfully processed template{Colors.ENDC}")
-            return response.choices[0].message.content
+            
+            # Extract result before cleanup
+            result = response.choices[0].message.content
+            
+            # Clean up large objects
+            del response
+            del create_params
+            del messages
+            del system_prompt
+            
+            return result
+            
         except Exception as e:
             logger.error(f"[{loggerName}] {Colors.RED}Error processing template: {str(e)}{Colors.ENDC}")
             return f"Error processing template: {str(e)}"
+        finally:
+            # Ensure cleanup even on error
+            if response is not None:
+                del response
+            if create_params is not None:
+                del create_params
+            if messages is not None:
+                del messages
     # end process_template
 # end OpenAIClient
 

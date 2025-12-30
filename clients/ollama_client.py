@@ -31,24 +31,42 @@ class OllamaClient:
         self.filter_models()
 
     def filter_models(self):
-        if self._models is None:
-            try:
-                all_models = self._client.list()
-                filtered_models = [
-                    model.model for model in all_models.models
-                ]
+        all_models = None
+        filtered_models = None
+        
+        try:
+            if self._models is None:
+                try:
+                    all_models = self._client.list()
+                    filtered_models = [
+                        model.model for model in all_models.models
+                    ]
 
-                self._models = sorted(filtered_models, key=str.casefold)
+                    self._models = sorted(filtered_models, key=str.casefold)
+                    
+                    # Clean up intermediate lists
+                    del all_models
+                    del filtered_models
 
-                if not self._models:
-                    logger.warning(f"[{loggerName}] {Colors.YELLOW}No models found!{Colors.ENDC}")
-                    self._models = ["No models found!"]
+                    if not self._models:
+                        logger.warning(f"[{loggerName}] {Colors.YELLOW}No models found!{Colors.ENDC}")
+                        self._models = ["No models found!"]
 
-            except Exception as e:
-                logger.error(f"[{loggerName}] {Colors.RED}Error filtering models: {str(e)}{Colors.ENDC}")
-                self._models = [f"Error filtering models: {str(e)}"]
+                except Exception as e:
+                    logger.error(f"[{loggerName}] {Colors.RED}Error filtering models: {str(e)}{Colors.ENDC}")
+                    self._models = [f"Error filtering models: {str(e)}"]
+        finally:
+            # Ensure cleanup even on error
+            if all_models is not None:
+                del all_models
+            if filtered_models is not None:
+                del filtered_models
 
     def parse_model_info(self, model_info: dict) -> dict:
+        details_dict = None
+        model_info_dict = None
+        parameters_dict = None
+        
         try:
             # Extract details object attributes
             details = model_info.get('details', {})
@@ -85,12 +103,25 @@ class OllamaClient:
                 'modelinfo': model_info_dict,
                 'parameters': parameters_dict
             }
+            
+            # Clean up intermediate dicts (they're now in parsed_info)
+            del details_dict
+            del model_info_dict
+            del parameters_dict
 
             return parsed_info
 
         except Exception as e:
             logger.error(f"[{loggerName}] {Colors.RED}Error parsing model information: {str(e)}{Colors.ENDC}")
             return {}
+        finally:
+            # Ensure cleanup even on error
+            if details_dict is not None:
+                del details_dict
+            if model_info_dict is not None:
+                del model_info_dict
+            if parameters_dict is not None:
+                del parameters_dict
         
     def get_model_information(self, model_name):
         try:
@@ -111,6 +142,9 @@ class OllamaClient:
             raise
 
     def unload_model(self, model_name):
+        payload = None
+        response = None
+        
         try:
             # Force cleanup
             comfy.model_management.unload_all_models()
@@ -127,6 +161,10 @@ class OllamaClient:
             
             # Call the Ollama API to unload the model
             response = self._client.generate(**payload)
+            
+            # Clean up
+            del payload
+            del response
 
             logger.info(f"{loggerName} {Colors.BLUE}Successfully unloaded model: {model_name}{Colors.ENDC}")
             
@@ -134,46 +172,68 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"[{loggerName}] {Colors.RED}Error unloading model {model_name}: {str(e)}{Colors.ENDC}")
             return False
+        finally:
+            # Ensure cleanup even on error
+            if payload is not None:
+                del payload
+            if response is not None:
+                del response
         
     def format_model_prompt(self, template, system_prompt, user_prompt):
-        # Create a context dict with our available variables
-        context = {
-            "System": system_prompt,
-            "Prompt": user_prompt,
-            "Response": "",  # Empty for initial prompt
-            "Messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        }
+        context = None
         
-        # Use the template directly if it exists
-        if template:
-            try:
-                # Handle message-based templates (iterate through messages)
-                if "{{- range" in template:
-                    # Template uses message format - return as is since Ollama will handle it
-                    return template
-                
-                # Handle simple variable replacement
-                formatted = template
-                for key, value in context.items():
-                    if isinstance(value, str):
-                        # Replace both {{ .Key }} and {{ .key }} patterns
-                        formatted = re.sub(r'{{\s*\.' + key + r'\s*}}', str(value), formatted)
-                        formatted = re.sub(r'{{\s*\.' + key.lower() + r'\s*}}', str(value), formatted)
-                
-                return formatted
-                
-            except Exception as e:
-                logger.error(f"[{loggerName}] {Colors.RED}Error formatting prompt with template: {str(e)}{Colors.ENDC}")
-                # Fallback to basic format if template processing fails
-                return f"{system_prompt}\n{user_prompt}"
-        
-        # Fallback for no template
-        return f"{system_prompt}\n{user_prompt}"    
+        try:
+            # Create a context dict with our available variables
+            context = {
+                "System": system_prompt,
+                "Prompt": user_prompt,
+                "Response": "",  # Empty for initial prompt
+                "Messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+            }
+            
+            # Use the template directly if it exists
+            if template:
+                try:
+                    # Handle message-based templates (iterate through messages)
+                    if "{{- range" in template:
+                        # Template uses message format - return as is since Ollama will handle it
+                        return template
+                    
+                    # Handle simple variable replacement
+                    formatted = template
+                    for key, value in context.items():
+                        if isinstance(value, str):
+                            # Replace both {{ .Key }} and {{ .key }} patterns
+                            formatted = re.sub(r'{{\s*\.' + key + r'\s*}}', str(value), formatted)
+                            formatted = re.sub(r'{{\s*\.' + key.lower() + r'\s*}}', str(value), formatted)
+                    
+                    # Clean up before returning
+                    del context
+                    
+                    return formatted
+                    
+                except Exception as e:
+                    logger.error(f"[{loggerName}] {Colors.RED}Error formatting prompt with template: {str(e)}{Colors.ENDC}")
+                    # Fallback to basic format if template processing fails
+                    return f"{system_prompt}\n{user_prompt}"
+            
+            # Fallback for no template
+            return f"{system_prompt}\n{user_prompt}"
+        finally:
+            # Ensure cleanup even on error
+            if context is not None:
+                del context    
 
     def process_template(self, model, user_prompt, temperature=0.3, presence_penalty=0, frequency_penalty=0, top_p=0.95, top_k=40, prompt_assistant=None):
+        system_prompt = None
+        model_info = None
+        options = None
+        generate_args = None
+        response = None
+        
         try:
             # Force cleanup before loading new model
             comfy.model_management.unload_all_models()
@@ -220,17 +280,49 @@ class OllamaClient:
                 logger.error(f"[{loggerName}] {Colors.RED}Empty response received from model{Colors.ENDC}")
                 logger.error(f"[{loggerName}] {Colors.RED}Response: {generate_args}{Colors.ENDC}")
                 return "Error: Empty response from model. Check server logs."
+            
+            # Extract result before cleanup
+            result = response.response
                 
             # Always unload the model after processing
             self.unload_model(model)
             
-            return response.response
+            # Clean up large objects
+            del response
+            del generate_args
+            del options
+            del model_info
+            del system_prompt
+            
+            return result
 
         except Exception as e:
             logger.error(f"[{loggerName}] {Colors.RED}Error in process_template: {str(e)}{Colors.ENDC}")
             return f"Error processing template: {str(e)}"
+        finally:
+            # Ensure cleanup even on error
+            if response is not None:
+                del response
+            if generate_args is not None:
+                del generate_args
+            if options is not None:
+                del options
+            if model_info is not None:
+                del model_info
+            if system_prompt is not None:
+                del system_prompt
 
     def process_image(self, model, image_tensor, temperature=0.3, top_p=0.95, top_k=40, prompt_assistant=None, custom_system_prompt=None):
+        image_np = None
+        pil_image = None
+        buffer = None
+        base64_image = None
+        system_prompt = None
+        model_info = None
+        options = None
+        generate_args = None
+        response = None
+        
         try:
             import io
             import base64
@@ -261,6 +353,16 @@ class OllamaClient:
             buffer = io.BytesIO()
             pil_image.save(buffer, format='PNG')
             base64_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            
+            # Close PIL image and buffer immediately after encoding
+            pil_image.close()
+            buffer.close()
+            del pil_image
+            del buffer
+            del image_np
+            pil_image = None
+            buffer = None
+            image_np = None
             
             # Use custom system prompt if provided, otherwise load from file
             if custom_system_prompt and custom_system_prompt.strip():
@@ -297,18 +399,49 @@ class OllamaClient:
             if not response or not response.response:
                 logger.error(f"[{loggerName}] {Colors.RED}Empty response received from model{Colors.ENDC}")
                 return "Error: Empty response from model. Check server logs."
-                
-            # Always unload the model after processing
-            self.unload_model(model)
             
             # Clean up the response text - strip whitespace and ensure it's a proper string
             cleaned_response = response.response.strip() if response.response else ""
             logger.info(f"[{loggerName}] {Colors.GREEN}Returning cleaned response: '{cleaned_response}'{Colors.ENDC}")
+                
+            # Always unload the model after processing
+            self.unload_model(model)
+            
+            # Clean up large objects
+            del response
+            del generate_args
+            del options
+            del model_info
+            del system_prompt
+            del base64_image
+            
             return cleaned_response
 
         except Exception as e:
             logger.error(f"[{loggerName}] {Colors.RED}Error in process_image: {str(e)}{Colors.ENDC}")
             return f"Error processing image: {str(e)}"
+        finally:
+            # Ensure cleanup even on error
+            if pil_image is not None:
+                pil_image.close()
+                del pil_image
+            if buffer is not None:
+                buffer.close()
+                del buffer
+            if image_np is not None:
+                del image_np
+            if base64_image is not None:
+                del base64_image
+            if response is not None:
+                del response
+            if generate_args is not None:
+                del generate_args
+            if options is not None:
+                del options
+            if model_info is not None:
+                del model_info
+            if system_prompt is not None:
+                del system_prompt
         
 _ollama_client = None
 

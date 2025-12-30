@@ -24,6 +24,9 @@ app.registerExtension({
 					w.inputEl.style.opacity = 0.6;
 					w.value = list;
 				}
+				
+				// Clean up text copy
+				v.length = 0;
 
 				requestAnimationFrame(() => {
 					const sz = this.computeSize();
@@ -35,6 +38,9 @@ app.registerExtension({
 					}
 					this.onResize?.(sz);
 					app.graph.setDirtyCanvas(true, false);
+					
+					// Help GC by clearing size reference
+					sz.length = 0;
 				});
 			}
 

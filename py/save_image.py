@@ -1,6 +1,5 @@
 import os
 import datetime
-import queue
 import numpy as np
 import threading
 import random
@@ -13,9 +12,6 @@ import torch
 import json
 import logging
 
-import server
-from aiohttp import web
-
 class Colors:
     BLUE   = '\033[94m'
     GREEN  = '\033[92m'
@@ -24,26 +20,6 @@ class Colors:
     ENDC   = '\033[0m'  # Resets the color
 
 logger = logging.getLogger(__name__)
-
-# Create a response queue
-response_queue = queue.Queue()
-
-@server.PromptServer.instance.routes.post("/basify/server/llm/save_again")
-async def save_again(request):
-    # This endpoint is deprecated - was causing memory leaks
-    return web.json_response({"status": "error", "message": "save_again endpoint is deprecated"})
-
-@server.PromptServer.instance.routes.post("/basify/server/llm/prompt_request")
-async def process_prompt_response(request):
-    data = await request.json()
-    # Clear queue before adding new data to prevent old responses from being used
-    while not response_queue.empty():
-        try:
-            response_queue.get_nowait()
-        except queue.Empty:
-            break
-    response_queue.put(data)
-    return web.json_response({"status": "success"})
 
 class SaveImageCustomPath:
     """ComfyUI node for saving images with customizable paths and filenames."""

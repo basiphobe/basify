@@ -44,12 +44,20 @@ class OllamaProcess:
 
     def process_text(self, text, model, system_prompt, temperature, top_p, top_k):
         """Process the input text through Ollama and return the result."""
+        client = None
+        options = None
+        generate_args = None
+        response_obj = None
+        
         try:
             logger.info(f"[{loggerName}] Processing text with model: {model}")
             
             # Force cleanup before processing
             comfy.model_management.unload_all_models()
             comfy.model_management.soft_empty_cache(force=True)
+            
+            # Get client once
+            client = ollama_client()
             
             # Build options for the model
             options = {
@@ -68,11 +76,16 @@ class OllamaProcess:
             
             logger.info(f"[{loggerName}] {Colors.YELLOW}Processing with model: {model}{Colors.ENDC}")
             
-            response_obj = ollama_client()._client.generate(**generate_args)
+            response_obj = client._client.generate(**generate_args)
             response = response_obj.response if response_obj else "No response received"
             
+            # Clean up response object immediately after extracting response
+            del response_obj
+            del generate_args
+            del options
+            
             # Unload model and cleanup after processing
-            ollama_client().unload_model(model)
+            client.unload_model(model)
             logger.info(f"[{loggerName}] {Colors.GREEN}Text processed successfully{Colors.ENDC}")
             
             return (response,)
@@ -80,6 +93,14 @@ class OllamaProcess:
         except Exception as e:
             logger.error(f"[{loggerName}] {Colors.RED}Error processing text: {str(e)}{Colors.ENDC}")
             return (f"Error processing text: {str(e)}",)
+        finally:
+            # Ensure cleanup even on error
+            if response_obj is not None:
+                del response_obj
+            if generate_args is not None:
+                del generate_args
+            if options is not None:
+                del options
 
 
 NODE_CLASS_MAPPINGS = {

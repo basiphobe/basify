@@ -25,8 +25,11 @@ function saveLastSelection(directoryPath, checkpoint) {
 
 // Function to get checkpoints from a directory via API
 async function getCheckpointsFromDirectory(directoryPath) {
+    let response = null;
+    let data = null;
+    
     try {
-        const response = await fetch('/basify/scan_directory', {
+        response = await fetch('/basify/scan_directory', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -35,11 +38,21 @@ async function getCheckpointsFromDirectory(directoryPath) {
         });
         
         if (response.ok) {
-            const data = await response.json();
-            return data.checkpoints || [];
+            data = await response.json();
+            const checkpoints = data.checkpoints || [];
+            
+            // Clean up response objects
+            data = null;
+            response = null;
+            
+            return checkpoints;
         }
     } catch (error) {
         console.error('Error fetching checkpoints:', error);
+    } finally {
+        // Ensure cleanup
+        data = null;
+        response = null;
     }
     return [];
 }
