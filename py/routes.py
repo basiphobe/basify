@@ -90,6 +90,59 @@ async def scan_directory_for_checkpoints(request):
         except (NameError, UnboundLocalError):
             pass
 
+async def test_sound(request):
+    """API endpoint to test sound playback"""
+    try:
+        payload = await request.json()
+        sound_file = payload.get("sound_file", "~/Music/that-was-quick.mp3")
+        volume = payload.get("volume", 100)
+        enabled = payload.get("enabled", "enable")
+        
+        if enabled == "disable":
+            logger.info(f"{Colors.BLUE}[BASIFY Sound Test]{Colors.ENDC} {Colors.YELLOW}Sound disabled, skipping test{Colors.ENDC}")
+            return web.json_response({"status": "disabled"})
+        
+        # Import pygame and play sound
+        try:
+            import pygame
+            import threading
+            
+            # Initialize mixer if needed (same logic as sound_notifier.py)
+            _mixer_lock = threading.Lock()
+            with _mixer_lock:
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+                    logger.info(f"{Colors.BLUE}[BASIFY Sound Test]{Colors.ENDC} pygame.mixer initialized")
+            
+            # Expand home directory
+            sound_path = os.path.expanduser(sound_file)
+            
+            if not os.path.isfile(sound_path):
+                logger.error(f"{Colors.BLUE}[BASIFY Sound Test]{Colors.ENDC} {Colors.RED}Sound file not found: {sound_path}{Colors.ENDC}")
+                return web.json_response({"error": f"Sound file not found: {sound_path}"}, status=404)
+            
+            # Load and play sound
+            sound = pygame.mixer.Sound(sound_path)
+            sound.set_volume(volume / 100.0)
+            sound.play()
+            
+            logger.info(f"{Colors.BLUE}[BASIFY Sound Test]{Colors.ENDC} {Colors.GREEN}Playing test sound: {sound_path} at {volume}% volume{Colors.ENDC}")
+            
+            return web.json_response({"status": "playing", "file": sound_path})
+            
+        except Exception as e:
+            logger.error(f"{Colors.BLUE}[BASIFY Sound Test]{Colors.ENDC} {Colors.RED}Error playing sound: {e}{Colors.ENDC}")
+            import traceback
+            traceback.print_exc()
+            return web.json_response({"error": str(e)}, status=500)
+        
+    except Exception as e:
+        logger.error(f"{Colors.BLUE}[BASIFY Sound Test]{Colors.ENDC} {Colors.RED}Error in test_sound: {e}{Colors.ENDC}")
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": str(e)}, status=500)
+
 server.PromptServer.instance.app.add_routes([
     web.post("/basify/scan_directory", scan_directory_for_checkpoints),
+    web.post("/basify/test_sound", test_sound),
 ])
