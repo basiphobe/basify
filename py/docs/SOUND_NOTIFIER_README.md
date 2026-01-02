@@ -1,255 +1,436 @@
-# Sound Notifier 🔔 - Documentation
+# Sound Notifier
 
-A ComfyUI node that plays a sound notification when executed, perfect for alerting you when a workflow completes.
+## Overview
 
-## Features
+The **Sound Notifier** is a ComfyUI custom node that plays an audio notification when executed in a workflow. This is particularly useful for alerting you when long-running workflows complete, enabling you to work on other tasks without constantly monitoring your workflow progress.
 
-- **Workflow Completion Alerts** - Get notified when your generation finishes
-- **Universal Input** - Accepts any output type (IMAGE, LATENT, STRING, etc.) as trigger
-- **Test Button** - Preview sound before running workflow
-- **Volume Control** - Adjust notification volume (0-100%)
-- **Enable/Disable Toggle** - Easily turn notifications on/off
-- **Multi-Format Support** - Plays WAV, MP3, OGG, and other common formats
-- **Terminal Node** - No output, designed to be the final node in a chain
+## Key Features
 
----
+- **Audio Notifications**: Plays a sound when the node executes
+- **Multiple Formats**: Supports WAV, MP3, and OGG audio files
+- **Volume Control**: Adjustable volume from 0-100%
+- **Enable/Disable Toggle**: Easily turn notifications on or off without removing the node
+- **Passthrough Trigger**: Optional input to control execution timing
+- **Path Expansion**: Supports `~` for home directory paths
+- **Non-Blocking**: Sound plays asynchronously without delaying workflow execution
+
+## Node Information
+
+- **Node Name**: `BasifySoundNotifier`
+- **Display Name**: `Basify: Sound Notifier`
+- **Category**: `basify`
+- **Output Node**: Yes (executes at workflow end)
 
 ## Input Parameters
 
-### Required Inputs
+### Required Parameters
 
-#### `sound_file` (STRING)
-Path to the sound file to play.
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `sound_file` | STRING | `"~/Music/that-was-quick.mp3"` | Path to the audio file to play |
+| `volume` | INT | `100` | Volume level (0-100, where 100 is maximum) |
+| `enabled` | DROPDOWN | `"enable"` | Enable or disable sound playback (`enable`/`disable`) |
 
-**Default:** `~/Music/that-was-quick.mp3`
+### Optional Parameters
 
-**Supported Formats:** WAV, MP3, OGG, FLAC, and other formats supported by pygame.mixer
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `trigger` | ANY | None | Optional input to control when the node executes |
 
-**Path Features:**
-- Supports `~` for home directory expansion
-- Use absolute paths: `/path/to/sound.mp3`
-- Or relative to home: `~/Music/notification.wav`
+## Output Values
 
-**Examples:**
-```
-~/Music/that-was-quick.mp3
-/usr/share/sounds/freedesktop/stereo/complete.oga
-~/Downloads/notification.wav
-```
+This node has no outputs. It's designed as an OUTPUT_NODE that executes at the end of the workflow.
 
-#### `volume` (INT)
-Volume level for the notification sound.
+## Supported Audio Formats
 
-**Range:** 0-100  
-**Default:** 100  
-**Step:** 1
+- **WAV** (`.wav`) - Uncompressed audio
+- **MP3** (`.mp3`) - Compressed audio
+- **OGG** (`.ogg`) - Ogg Vorbis compressed audio
 
-- **0** - Muted (no sound plays)
-- **50** - Half volume
-- **100** - Full volume
+## How It Works
 
-#### `enabled` (DROPDOWN)
-Enable or disable sound playback.
+### Audio Engine
 
-**Options:** `enable`, `disable`  
-**Default:** `enable`
+The node uses **pygame.mixer** for audio playback:
+- Initialized once globally on first use
+- Configuration: 44.1kHz, 16-bit, stereo, 512-byte buffer
+- Thread-safe initialization with mutex locking
 
-Useful for temporarily disabling notifications without removing the node or changing connections.
+### Execution Flow
 
-### Optional Inputs
+1. **Check Enabled Status**: If `enabled` is `"disable"`, the node exits immediately
+2. **Initialize Audio**: Ensures pygame.mixer is initialized (one-time setup)
+3. **Path Expansion**: Expands `~` to the user's home directory
+4. **File Validation**: Checks if the sound file exists
+5. **Load Audio**: Loads the sound file into memory
+6. **Set Volume**: Applies the volume level (0.0-1.0 scale)
+7. **Play Sound**: Starts audio playback asynchronously
+8. **Complete**: Node execution finishes (sound plays in background)
 
-#### `trigger` (ANY)
-Universal input that accepts any type from a previous node.
+### Non-Blocking Playback
 
-**Type:** IO.ANY - accepts IMAGE, LATENT, STRING, INT, FLOAT, and all other types  
-**Default:** None
-
-Connect this to the output of your final node to trigger the sound when that node completes execution.
-
----
-
-## Output Parameters
-
-**None** - This is a terminal node with no outputs. It's designed to be placed at the end of your workflow chain.
-
----
+The sound plays asynchronously, so:
+- Workflow execution completes immediately
+- ComfyUI remains responsive
+- Sound continues playing even after workflow finishes
 
 ## Usage Examples
 
-### Basic Usage - Workflow Completion
+### Basic Usage
+
+Place the Sound Notifier at the end of your workflow:
 
 ```
-[Generate Image] → [Save Image] → [Sound Notifier]
+[Image Processing Nodes] -> [Save Image] -> [Sound Notifier]
 ```
 
-1. Add a Sound Notifier node to your workflow
-2. Connect the output of your final node to the `trigger` input
-3. Set your preferred sound file and volume
-4. Run the workflow - you'll hear a sound when it completes!
+The sound will play when the workflow completes.
 
-### Testing Sound Before Workflow
+### Using the Trigger Input
 
-Use the **🔊 Test Sound** button in the node to preview your sound without running the entire workflow. This is useful for:
-- Checking if the sound file path is correct
-- Adjusting volume to a comfortable level
-- Testing different sound files
-
-### Multiple Workflow Stages
+Connect the trigger input to control execution timing:
 
 ```
-[Generate] → [Process A] → [Sound Notifier #1 (quiet)]
-                         ↓
-                    [Process B] → [Sound Notifier #2 (loud)]
+[Any Node Output] -> [trigger input of Sound Notifier]
 ```
 
-You can use multiple Sound Notifier nodes at different stages, each with different sounds and volumes.
+The Sound Notifier will execute after the connected node completes.
 
-### Conditional Notifications
+### Multiple Notifications
 
-Set `enabled` to `disable` when you don't want notifications (e.g., during testing), then switch back to `enable` for production runs.
+Use multiple Sound Notifier nodes with different sounds for different workflow paths:
 
----
+```
+[Branch A] -> [Sound Notifier (success sound)]
+[Branch B] -> [Sound Notifier (error sound)]
+```
 
-## Technical Details
+### Temporary Disable
 
-### Sound Playback
-- Uses pygame.mixer for reliable cross-platform audio
-- Non-blocking playback (workflow execution completes immediately)
-- Global mixer initialization (shared across all instances)
-- Each node loads its own Sound object for independent control
+To temporarily disable notifications without removing the node:
+- Set `enabled` to `"disable"`
+- The node will execute but produce no sound
+- No need to disconnect or delete the node
 
-### Execution Behavior
-- **OUTPUT_NODE = True**: Executes even without downstream connections
-- **RETURN_TYPES = ()**: No outputs (terminal node)
-- Requires an input connection to be included in workflow execution graph
-- Accepts any input type via ComfyUI's IO.ANY type system
+## Configuration Examples
 
-### Performance
-- Minimal overhead (mixer initializes only once)
-- Sound loading happens at execution time
-- Non-blocking playback doesn't slow down workflow
-- Small memory footprint
+### Subtle Background Notification
+```
+sound_file: ~/Music/gentle-chime.wav
+volume: 30
+enabled: enable
+```
 
-### Error Handling
-- Gracefully handles missing sound files (logs error, continues workflow)
-- Continues execution even if pygame fails to initialize
-- Always completes successfully (errors logged but not raised)
+### Loud Completion Alert
+```
+sound_file: ~/Music/loud-alarm.mp3
+volume: 100
+enabled: enable
+```
 
----
+### Custom Sound Library
+```
+sound_file: /path/to/custom/sounds/workflow-complete.ogg
+volume: 75
+enabled: enable
+```
+
+## Path Specifications
+
+### Home Directory Expansion
+The node supports `~` expansion:
+- `~/Music/sound.mp3` → `/home/username/Music/sound.mp3`
+- `~/sounds/alert.wav` → `/home/username/sounds/alert.wav`
+
+### Absolute Paths
+You can also use absolute paths:
+- `/usr/share/sounds/complete.wav`
+- `/opt/audio/notifications/done.mp3`
+
+### Relative Paths
+Relative paths work but are not recommended:
+- Resolved relative to ComfyUI's working directory
+- Can be unpredictable depending on how ComfyUI is launched
+
+## Best Practices
+
+### 1. Use Appropriate Sounds
+- **Short sounds** (1-3 seconds) work best for notifications
+- Avoid long audio tracks that may be distracting
+- Consider pleasant, non-jarring sounds for frequent workflows
+
+### 2. Set Reasonable Volume
+- Start with 50-75% volume and adjust as needed
+- Consider your environment (office vs. home)
+- Lower volume for frequent workflow executions
+
+### 3. Organize Your Sound Files
+Create a dedicated sounds directory:
+```
+~/Music/comfyui-sounds/
+  ├── success.mp3
+  ├── error.wav
+  ├── warning.ogg
+  └── complete.mp3
+```
+
+### 4. Test Before Long Workflows
+- Run a quick test workflow to verify sound plays
+- Check volume level is appropriate
+- Ensure file path is correct
+
+### 5. Use Enable/Disable for Development
+When developing workflows:
+- Keep the node but set `enabled` to `"disable"`
+- Re-enable for production or long-running workflows
+
+### 6. Position at Workflow End
+Place the Sound Notifier node:
+- After save operations complete
+- At the final output node
+- Connected to nodes that signify true completion
+
+## Error Handling
+
+The node handles errors gracefully:
+
+### File Not Found
+```
+[ERROR] Sound file not found: /path/to/missing/file.mp3
+```
+- Workflow continues without playing sound
+- Error logged to console
+- No workflow interruption
+
+### Invalid Audio Format
+```
+[ERROR] Error playing sound: Unable to load sound file
+```
+- Workflow continues
+- Check file format is supported (WAV, MP3, OGG)
+- Verify file is not corrupted
+
+### Pygame Initialization Failure
+```
+[ERROR] Failed to initialize pygame.mixer: ...
+```
+- Occurs if pygame is not installed or system audio is unavailable
+- Workflow continues without sound
+- Check pygame installation: `pip install pygame`
 
 ## Troubleshooting
 
-### Sound Doesn't Play
-
-**Check the file path:**
-- Verify the file exists: `ls -l ~/Music/that-was-quick.mp3`
-- Check ComfyUI console for error messages
-- Ensure the path uses `/` (not `\`) on all platforms
-
-**Verify pygame installation:**
-```bash
-conda activate ComfyUI
-pip install pygame>=2.5.0
-```
+### No Sound Playing
 
 **Check enabled status:**
-- Ensure `enabled` is set to `enable`, not `disable`
+- Verify `enabled` is set to `"enable"`
 
-**Verify ComfyUI is running locally:**
-- Sound plays on the **server** where ComfyUI is running
-- If ComfyUI is on a remote server, you won't hear the sound locally
+**Verify file path:**
+- Ensure the file exists at the specified location
+- Try using an absolute path for testing
+- Check file permissions (must be readable)
 
-### Volume Too Loud/Quiet
+**Test audio file:**
+- Verify the file plays in a standard audio player
+- Ensure format is supported (WAV, MP3, OGG)
+
+**Check system audio:**
+- Ensure system volume is not muted
+- Test with other applications that produce sound
+- On Linux, verify ALSA/PulseAudio is working
+
+### Import Error
+
+**Pygame not installed:**
+```bash
+pip install pygame
+```
+
+**In conda environment:**
+```bash
+conda install pygame
+```
+
+### Volume Too Quiet/Loud
 
 - Adjust the `volume` parameter (0-100)
-- Also check your system volume settings
-- Try different sound files (some are normalized differently)
-- Use the test button to preview volume before running workflow
+- Check system volume settings
+- Try a different audio file
 
-### Node Doesn't Execute
+### Sound Cuts Off
 
-- Ensure the `trigger` input is connected to another node's output
-- The node won't execute if it's not connected (even with OUTPUT_NODE = True)
-- Check that the workflow path includes this node
+- The sound plays asynchronously and may be interrupted if:
+  - ComfyUI closes immediately after workflow
+  - System audio is stopped
+- For critical notifications, use longer sounds or add a delay node
 
-### File Format Not Supported
+## Integration Examples
 
-pygame.mixer supports most common formats, but some require additional codecs:
-- **Always works:** WAV, OGG
-- **Usually works:** MP3 (requires pygame 2.0+)
-- **May need codecs:** FLAC, other formats
-
-If you have issues, convert your sound to WAV or OGG format.
-
----
-
-## Integration Tips
-
-### Best Practices
-
-1. **Placement:** Add Sound Notifier as the last node in your workflow
-2. **Volume:** Start with volume at 50-70% to avoid jarring notifications
-3. **Sound Selection:** Use short sounds (0.5-2 seconds) for quick feedback
-4. **Testing:** Use the test button during setup, disable during rapid iteration
-
-### Recommended Workflow Pattern
-
+### Basic Completion Notification
 ```
-[Your Workflow Nodes]
-         ↓
-   [Final Output] ──trigger──→ [Sound Notifier]
+[Workflow] -> [Save Image] -> [Sound Notifier]
 ```
 
-This ensures the sound plays only when everything completes successfully.
-
-### Finding Sound Files
-
-**Linux:**
-- System sounds: `/usr/share/sounds/`
-- User sounds: `~/Music/` or `~/Sounds/`
-
-**macOS:**
-- System sounds: `/System/Library/Sounds/`
-- User sounds: `~/Music/`
-
-**Windows:**
-- System sounds: `C:\Windows\Media\`
-- User sounds: `C:\Users\YourName\Music\`
-
-### Creating Custom Sounds
-
-Use short, distinctive sounds:
-- Export from audio editors as WAV or OGG
-- Keep file sizes small (<1 MB)
-- Normalize volume for consistency
-
----
-
-## Example Configuration
-
-```python
-{
-  "sound_file": "~/Music/that-was-quick.mp3",
-  "volume": 75,
-  "enabled": "enable",
-  "trigger": [connection from previous node]
-}
+### Conditional Notifications
+```
+[Processing] -> [If Success] -> [Sound Notifier (success.mp3)]
+                             -> [If Failed] -> [Sound Notifier (error.mp3)]
 ```
 
----
+### With Status Display
+```
+[Workflow] -> [Sound Notifier]
+           -> [Status Display]
+```
+
+### Batch Processing Alert
+```
+[Directory Auto Iterator] -> [Processing] -> [Save Image]
+                          -> [completed] -> [Sound Notifier]
+```
+Use the completed flag from Directory Auto Iterator to play sound only when all images are processed.
+
+## Technical Notes
+
+### Pygame.mixer Configuration
+- **Frequency**: 44.1 kHz (CD quality)
+- **Bit depth**: 16-bit signed
+- **Channels**: 2 (stereo)
+- **Buffer size**: 512 bytes (low latency)
+
+### Thread Safety
+- Mixer initialization uses a global lock (`_mixer_lock`)
+- Prevents race conditions when multiple workflows execute simultaneously
+- Initialization happens once per ComfyUI session
+
+### Volume Scaling
+- Input volume (0-100) is converted to pygame scale (0.0-1.0)
+- Formula: `pygame_volume = volume / 100.0`
+- Linear scaling (not logarithmic)
+
+### Logging
+All operations are logged with `[BASIFY Sound Notifier]` prefix:
+- Info: Successful playback, initialization
+- Error: File not found, playback errors, initialization failures
 
 ## Dependencies
 
-- **pygame** >= 2.5.0 (installed automatically with basify)
+### Required
+- **pygame** - Audio playback library
+  ```bash
+  pip install pygame
+  ```
 
----
+### Optional
+- None - All dependencies are required for functionality
 
-## Notes
+## Compatibility
 
-- Sound plays asynchronously (doesn't block the workflow)
-- Thread-safe for concurrent workflow execution
-- Minimal CPU/memory overhead
-- Works on Linux, macOS, and Windows
-- Sound plays on the **server**, not in your browser
+- **ComfyUI**: Compatible with standard ComfyUI workflows
+- **Operating Systems**: 
+  - Linux (ALSA, PulseAudio, PipeWire)
+  - Windows (DirectSound, WASAPI)
+  - macOS (CoreAudio)
+- **Python**: Python 3.7+
+- **Audio Formats**: WAV, MP3, OGG (via pygame.mixer)
 
-For issues or feature requests, please file an issue on the basify repository.
+## Performance Considerations
+
+- **Memory**: Audio file loaded into memory (keep files small)
+- **Initialization**: One-time setup cost on first use
+- **Playback**: Non-blocking, minimal CPU overhead
+- **File Size**: Recommended < 5MB per sound file
+- **Workflow Impact**: Negligible (< 10ms overhead typically)
+
+## Common Use Cases
+
+### 1. Long Training/Generation Workflows
+Alert when stable diffusion batches complete:
+```
+[SD Model] -> [Batch Processing] -> [Save] -> [Sound Notifier]
+```
+
+### 2. Overnight Rendering
+Get notified when morning renders finish:
+```
+[Complex Workflow] -> [Final Output] -> [Sound Notifier (loud alarm)]
+```
+
+### 3. Development Testing
+Disable during development, enable for production:
+```
+enabled: disable  # During development
+enabled: enable   # For production runs
+```
+
+### 4. Multi-Stage Workflows
+Different sounds for different completion stages:
+```
+[Stage 1] -> [Sound 1 (chime)]
+[Stage 2] -> [Sound 2 (bell)]
+[Final]   -> [Sound 3 (fanfare)]
+```
+
+## Finding Sound Files
+
+### Free Sound Resources
+- **System Sounds**: Check `/usr/share/sounds/` on Linux
+- **Online Libraries**: 
+  - FreeSound.org
+  - Zapsplat.com (free tier)
+  - Notification Sounds (search online)
+
+### Creating Custom Sounds
+- Use Audacity (free) to create/edit sounds
+- Keep sounds short (1-3 seconds)
+- Export as WAV for compatibility or MP3 for smaller size
+
+### Recommended Sound Characteristics
+- Duration: 1-3 seconds
+- Format: WAV (best compatibility) or MP3 (smaller size)
+- Frequency: Clear tones in 500-2000 Hz range
+- Avoid: Sudden loud peaks, harsh tones, copyrighted material
+
+## Advanced Usage
+
+### Dynamic Sound Selection
+While this node doesn't support dynamic sound selection directly, you can:
+- Use multiple Sound Notifier nodes with different sounds
+- Route workflow execution to different notifiers based on conditions
+
+### Volume Automation
+To vary volume based on time of day or conditions:
+- Set volume parameter before workflow execution
+- Use lower volume for night/early morning (30-50)
+- Use higher volume for daytime (70-100)
+
+### Silent Mode
+For environments where sound is inappropriate:
+- Set `enabled` to `"disable"`
+- Consider visual notifications instead (status display, file output)
+
+## Migration Notes
+
+If upgrading from a custom notification solution:
+- This node replaces manual sound playback scripts
+- Pygame.mixer is more reliable than system command calls
+- Volume control is built-in (no need for external tools)
+
+## Future Enhancements
+
+Potential future features (not currently implemented):
+- Sound file browser/picker
+- Preview button to test sound before workflow
+- Multiple sound file selection
+- Fade in/fade out effects
+- Repeat count option
+- Delay before playback
+
+## Support
+
+For issues or questions:
+1. Check console logs for error messages
+2. Verify pygame installation
+3. Test audio file in a standard player
+4. Check file path and permissions
+5. Review this documentation for troubleshooting steps
