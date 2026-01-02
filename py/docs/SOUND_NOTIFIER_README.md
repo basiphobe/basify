@@ -10,7 +10,7 @@ The **Sound Notifier** is a ComfyUI custom node that plays an audio notification
 - **Multiple Formats**: Supports WAV, MP3, and OGG audio files
 - **Volume Control**: Adjustable volume from 0-100%
 - **Enable/Disable Toggle**: Easily turn notifications on or off without removing the node
-- **Passthrough Trigger**: Optional input to control execution timing
+- **Trigger Input**: Optional input to control execution timing
 - **Path Expansion**: Supports `~` for home directory paths
 - **Non-Blocking**: Sound plays asynchronously without delaying workflow execution
 
