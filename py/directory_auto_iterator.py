@@ -193,7 +193,13 @@ class DirectoryAutoIterator:
         
         # Validate directory path
         if not directory_path or not os.path.exists(directory_path):
-            return (None, None, "", "", 0, 0, True, "Invalid directory path")
+            return (None, None, "", "", 0, 0, False, "Invalid directory path")
+        
+        # Check if reset is requested
+        should_reset = reset_progress == "true"
+        
+        if should_reset:
+            print(f"[DirectoryAutoIterator] Reset requested")
         
         # Always re-scan directory to pick up new/removed images
         if process_subdirectories == "enable":
@@ -204,7 +210,7 @@ class DirectoryAutoIterator:
         total_count = len(all_images)
         
         if total_count == 0:
-            return (None, None, "", "", 0, 0, True, "No images found in directory")
+            return (None, None, "", "", 0, 0, False, "No images found in directory")
         
         # Load current state
         state = self.load_state(directory_path)
@@ -213,8 +219,8 @@ class DirectoryAutoIterator:
         if state.get("directory_path") != directory_path and reset_on_directory_change == "enable":
             state = self.reset_state(directory_path)
         
-        # Handle manual reset
-        if reset_progress == "true":
+        # Handle manual reset - only if it hasn't been applied yet
+        if should_reset:
             state = self.reset_state(directory_path)
         
         processed_files = set(state.get("processed_files", []))
@@ -228,7 +234,7 @@ class DirectoryAutoIterator:
             print(f"[DirectoryAutoIterator] {status}")
             state["completed"] = True
             self.save_state(directory_path, state)
-            return (None, None, "", "", len(processed_files), total_count, True, status)
+            return (None, None, "", "", len(processed_files), total_count, False, status)
         
         # Try to load images until we find one that works
         image = None
@@ -270,14 +276,15 @@ class DirectoryAutoIterator:
         if image is None:
             status = f"All remaining images failed to load. Processed {len(processed_files)}/{total_count} images."
             print(f"[DirectoryAutoIterator] {status}")
-            return (None, None, "", "", len(processed_files), total_count, True, status)
+            return (None, None, "", "", len(processed_files), total_count, False, status)
         
         # Successfully loaded an image
         remaining = len(all_images) - len(processed_files)
         status = f"Processing: {filename} ({len(processed_files)}/{total_count} processed, {remaining} remaining)"
         print(f"[DirectoryAutoIterator] {status}")
         
-        completed = len(processed_files) >= total_count
+        # completed=True indicates a valid image is available for processing
+        completed = True
         
         return (image, mask, current_image_path, filename, len(processed_files), total_count, completed, status)
 

@@ -33,19 +33,19 @@ The **Directory Auto Iterator** is a ComfyUI custom node that automatically proc
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `reset_progress` | DROPDOWN | `"false"` | Set to `"true"` to reset and start from the first image |
+| `reset_progress` | DROPDOWN | `"false"` | Set to `"true"` to reset and start from the first image. **Automatically toggles back to `"false"` after execution** to prevent accidental re-resets. |
 
 ## Output Values
 
 | Output | Type | Description |
 |--------|------|-------------|
-| `image` | IMAGE | The loaded image tensor (ComfyUI format) |
-| `mask` | MASK | Alpha channel mask (if present) or zero mask |
-| `file_path` | STRING | Full path to the current image file |
-| `filename` | STRING | Name of the current image file |
+| `image` | IMAGE | The loaded image tensor (ComfyUI format), or `None` if no image available |
+| `mask` | MASK | Alpha channel mask (if present) or zero mask, or `None` if no image available |
+| `file_path` | STRING | Full path to the current image file (empty string if no image) |
+| `filename` | STRING | Name of the current image file (empty string if no image) |
 | `current_index` | INT | Number of images processed so far |
 | `total_count` | INT | Total number of images in the directory |
-| `completed` | BOOLEAN | `True` when all images have been processed |
+| `completed` | BOOLEAN | `True` when a valid image is available for processing, `False` when no image (finished/errors) |
 | `status` | STRING | Human-readable status message |
 
 ## Supported Image Formats
@@ -84,6 +84,14 @@ State information includes:
 
 The node uses the `IS_CHANGED` method to return a random value on each check, forcing ComfyUI to re-execute the node every time the workflow runs. This enables automatic iteration through all images.
 
+### Completed Flag Behavior
+
+The `completed` output indicates whether a valid image is available in the current execution:
+- `completed = True`: A valid image has been loaded and is available for processing
+- `completed = False`: No image is available (all processing finished, no images found, or errors occurred)
+
+Downstream nodes should check this flag to determine whether to process the image or skip the current execution.
+
 ## Usage Examples
 
 ### Basic Usage
@@ -106,26 +114,298 @@ This will process all images in the directory and all subdirectories, sorted alp
 
 ### Resetting Progress
 
-To start over from the first image:
-- Set `reset_progress` to `"true"`
-- Execute the workflow once
-- Change `reset_progress` back to `"false"`
+The `reset_progress` parameter provides a convenient way to restart processing from the first image:
 
-Alternatively, if `reset_on_directory_change` is enabled, simply change the `directory_path`.
+**How to Use**:
+1. Set `reset_progress` to `"true"` in the node UI
+2. Execute the workflow once
+3. The parameter **automatically toggles back to `"false"` after execution**
 
-### Conditional Workflow Logic
+**Why Auto-Toggle?**
+The automatic reset prevents a common mistake: if you forget to manually change `reset_progress` back to `"false"`, every subsequent workflow run would reset progress and re-process the first image. The auto-toggle ensures the reset only happens once, when you explicitly request it.
 
-Use the `completed` output to control workflow behavior:
+**Alternative Reset Methods**:
+- If `reset_on_directory_change` is enabled, simply change the `directory_path` to a different folder
+- Manually delete the state file in `py/.directory_states/` for the specific directory
 
-```python
-# Example: Only run processing nodes if not completed
-if not completed:
-    # Process image
-    pass
-else:
-    # All images processed, stop or trigger notification
-    pass
+## Wiring Examples
+
+### Example 1: Basic Sequential Processing
+
+The simplest setup - process images one at a time:
+
 ```
+[Directory Auto Iterator]
+    ├─ image → [Your Processing Nodes] → [Save Image]
+    ├─ status → [Show Text]
+    └─ completed → (not connected - optional monitoring)
+```
+
+**Use Case**: Simple batch processing where you want to process every image in a folder.
+
+**Behavior**: 
+- Each workflow run processes the next image
+- When all images are done, `image` output becomes `None` (may cause downstream errors)
+- Monitor `status` output to know when complete
+
+---
+
+### Example 2: Conditional Processing with Completed Flag
+
+**The recommended approach** - use conditional nodes to handle completion:
+
+```
+[Directory Auto Iterator]
+    ├─ image → [If/Switch Node]
+    ├─ completed → [If/Switch Node] (condition input)
+    └─ status → [Show Text]
+
+[If/Switch Node]
+    ├─ true branch → [Your Processing Nodes] → [Save Image]
+    └─ false branch → [Stop/Skip or Notification]
+```
+
+**Use Case**: Gracefully handle completion without errors.
+
+**Behavior**:
+- When `completed = True`: Image is processed normally
+- When `completed = False`: Skip processing or trigger notification
+- No errors from downstream nodes receiving `None`
+
+**Example with ComfyUI Built-in Nodes**:
+```
+[Directory Auto Iterator]
+    ├─ image ────────┐
+    ├─ completed ────┤
+    └─ status ───────┼─→ [Show Text]
+                     │
+                     ├─→ [If Image Exists] (custom logic)
+                     │       ├─ true → [Processing Pipeline]
+                     │       └─ false → [Print "All Done"]
+```
+
+---
+
+### Example 3: Automated Batch Queue Processing
+
+For fully automated processing of large directories:
+
+```
+[Directory Auto Iterator]
+    ├─ image → [Processing Nodes] → [Save Image]
+    ├─ current_index → [Show Text] ("Progress: X/Y")
+    ├─ total_count ──┘
+    ├─ completed → [If Node] → (check if False)
+    │                    ├─ true → [Stop Queue Node]
+    │                    └─ false → (continue)
+    └─ status → [Show Text]
+```
+
+**Use Case**: Queue up multiple workflow runs and automatically stop when done.
+
+**Behavior**:
+- Queue 100+ workflow executions
+- Each run processes one image
+- When `completed = False`, trigger queue stop
+- Remaining queued items are cancelled
+
+**Setup Steps**:
+1. Configure your workflow with conditional stop logic
+2. Queue the workflow many times (more than total images)
+3. The queue will automatically stop when all images are processed
+
+---
+
+### Example 4: Progress Monitoring and Reporting
+
+Track progress with detailed status information:
+
+```
+[Directory Auto Iterator]
+    ├─ image → [Processing Pipeline]
+    ├─ filename → [String Node] → "Currently: {filename}"
+    ├─ current_index ──┐
+    ├─ total_count ────┤→ [Math Node] → "Progress: {index}/{total} ({percent}%)"
+    ├─ completed ──────┤→ [Logic Node] → Status indicator
+    └─ status → [Show Text]
+```
+
+**Use Case**: Monitor progress in real-time during long batch operations.
+
+**Outputs**:
+- Current filename being processed
+- Progress percentage
+- Overall status
+- Completion indicator
+
+---
+
+### Example 5: Multi-Stage Processing with Checkpoints
+
+Process images through multiple stages:
+
+```
+[Directory Auto Iterator]
+    ├─ image ─────→ [Stage 1: Upscale] ─────→ [Save to temp/]
+    │                                              │
+    ├─ completed ──→ [Check] ──────────────────────┤
+    │                                              │
+    └─ status ────→ [Show Text]                    │
+                                                    ↓
+[Directory Auto Iterator #2]                  (temp/ folder)
+    ├─ image ─────→ [Stage 2: Enhance] ─────→ [Save to output/]
+    ├─ completed ──→ [Check]
+    └─ status ────→ [Show Text]
+```
+
+**Use Case**: Multi-pass processing where each stage needs separate iteration.
+
+**Behavior**:
+- First iterator processes all images through stage 1
+- Second iterator processes stage 1 output through stage 2
+- Each stage can be run independently
+
+---
+
+### Example 6: Selective Processing Based on Metadata
+
+Combine with metadata checking:
+
+```
+[Directory Auto Iterator]
+    ├─ image ────────┬─→ [Get Image Size]
+    ├─ file_path ────┤      │
+    ├─ completed ────┤      ↓
+    └─ status        │   [If Width > 1024]
+                     │      ├─ true → [Downscale] → [Save]
+                     │      └─ false → [Copy As-Is] → [Save]
+                     │
+                     └─→ [Check completion]
+```
+
+**Use Case**: Only process images that meet certain criteria.
+
+**Behavior**:
+- All images are iterated
+- Processing varies based on image properties
+- Images not meeting criteria are handled differently
+
+---
+
+### Example 7: Error Handling and Logging
+
+Robust setup with error tracking:
+
+```
+[Directory Auto Iterator]
+    ├─ image ────────→ [Try/Catch Processing]
+    │                      ├─ success → [Save to output/]
+    │                      └─ error → [Save to errors/]
+    ├─ filename ──────→ [Log Node] ("Processing: {filename}")
+    ├─ file_path ─────→ [Error Logger] (if processing fails)
+    ├─ completed ─────→ [Check if False] → [Generate Report]
+    └─ status ────────→ [Show Text] + [Save to log.txt]
+```
+
+**Use Case**: Production batch processing with error tracking.
+
+**Behavior**:
+- Each image is processed with error handling
+- Failed images are logged separately
+- Final report generated when `completed = False`
+- Full audit trail of processing
+
+---
+
+### Example 8: Notification on Completion
+
+Get notified when batch completes:
+
+```
+[Directory Auto Iterator]
+    ├─ image ────────→ [Processing Pipeline]
+    ├─ completed ────→ [If False]
+    │                      ├─ true → [Sound Notifier] (play sound)
+    │                      │         [Email Node] (send email)
+    │                      │         [Webhook] (notify system)
+    │                      └─ false → (continue silently)
+    └─ status ───────→ [Show Text]
+```
+
+**Use Case**: Long-running batch jobs that complete while you're away.
+
+**Behavior**:
+- Images process normally
+- When `completed = False` (no more images):
+  - Play notification sound
+  - Send email alert
+  - Trigger external webhook
+
+---
+
+## Understanding the Completed Flag
+
+### ✅ When `completed = True`
+- A valid image has been loaded
+- `image` and `mask` outputs contain valid tensors
+- It's safe to process the image
+- The workflow should continue normally
+
+### ❌ When `completed = False`  
+- No image is available
+- `image` and `mask` outputs are `None`
+- One of these conditions occurred:
+  - All images have been processed
+  - No images found in directory
+  - Invalid directory path
+  - All remaining images failed to load
+- Downstream nodes should skip processing or handle gracefully
+
+### Key Insight
+The `completed` flag tells you **"Is there an image ready to process?"** not **"Am I done processing?"**
+
+- `True` = "Yes, process this image"
+- `False` = "No image available, skip or stop"
+
+---
+
+## Best Practices for Wiring
+
+### 1. **Always Check the Completed Flag**
+Prevent errors by using conditional logic based on `completed`:
+```
+✅ GOOD: [completed] → [If Node] → Process only when True
+❌ BAD:  [image] → [Processing] (will error when image is None)
+```
+
+### 2. **Monitor Status Output**
+Connect `status` to a display node to see what's happening:
+```
+[status] → [Show Text] or [Console Print]
+```
+
+### 3. **Use Index/Total for Progress**
+Calculate progress percentage:
+```
+[current_index] ──┐
+[total_count] ────┤→ [Math: index/total * 100] → "Progress: X%"
+```
+
+### 4. **Handle the False Case**
+When `completed = False`, decide what to do:
+- Stop the queue
+- Send notification
+- Log completion
+- Reset for next batch
+
+### 5. **Test with Small Batches First**
+Before processing thousands of images:
+- Test with 3-5 images
+- Verify the `completed` flag works as expected
+- Check that all images are processed
+- Confirm graceful completion
+
+---
 
 ## Status Messages
 
@@ -195,16 +475,37 @@ The node re-scans the directory on each execution, so you can:
 - Ensure `process_subdirectories` is set to `"enable"`
 - Verify subdirectories contain images with supported extensions
 
-## Integration Example
+## Quick Integration Example
 
+### Minimal Setup (No Error Handling)
 ```
-[Directory Auto Iterator] -> [Image Processing Nodes] -> [Save Image]
-                          |
-                          +-> [status] -> [String Display]
-                          +-> [completed] -> [Conditional Logic]
+[Directory Auto Iterator]
+    ├─ image → [Processing] → [Save Image]
+    └─ status → [Show Text]
 ```
+
+### Recommended Setup (With Completion Handling)
+```
+[Directory Auto Iterator]
+    ├─ image ──────────┐
+    ├─ completed ──────┤→ [If/Switch Node]
+    └─ status ─────────┤       ├─ True → [Processing] → [Save]
+                       │       └─ False → [Done Action]
+                       └─ [Show Text]
+```
+
+See the **Wiring Examples** section above for detailed use cases.
 
 ## Technical Notes
+
+### Auto-Toggle Mechanism
+The `reset_progress` parameter automatically flips from `"true"` to `"false"` after workflow execution via JavaScript hooks:
+- **Hook**: Uses ComfyUI's `onExecutionStart` event in the frontend
+- **Timing**: Triggered when the node begins executing; reset occurs 500ms later (after execution completes)
+- **Implementation**: Located in `js/directory_auto_iterator.js`
+- **Persistence**: The auto-toggled value is saved with the workflow
+
+This ensures the reset is applied exactly once per manual toggle, preventing repetitive resets if you forget to change it back.
 
 ### Image Loading
 - Images are loaded using PIL (Pillow)
