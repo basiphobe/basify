@@ -124,6 +124,53 @@ Extracts and structures workflow metadata from ComfyUI images.
 
 ---
 
+#### **Display Anything as Text**
+Universal debugging and inspection tool that displays any input value as human-readable text.
+
+**Key Features**:
+- Accepts any input type (`*` wildcard)
+- Intelligent type conversion with detailed formatting
+- Tensor statistics (shape, dtype, min/max/mean/std)
+- JSON formatting for collections
+- Passthrough design for inline debugging
+- 50,000 character limit with truncation
+
+**Supported Types**: Primitives, strings, dicts, lists, tuples, PyTorch tensors, NumPy arrays, custom objects
+
+**Use Cases**: Workflow debugging, data inspection, type verification, tensor analysis
+
+📖 [**Full Documentation**](py/docs/DISPLAY_ANYTHING_README.md)
+
+**Example**:
+```
+Input:  torch.randn(3, 512, 512)
+Display: 
+  PyTorch Tensor
+    Shape: (3, 512, 512)
+    Dtype: torch.float32
+    Min: -3.924561
+    Max: 4.127832
+    Mean: 0.001234
+```
+
+---
+
+#### **Sound Notifier**
+Plays audio notifications when workflows complete execution.
+
+**Key Features**:
+- Supports WAV, MP3, and OGG formats
+- Configurable volume control
+- Enable/disable toggle
+- Optional trigger input for workflow chaining
+- Non-blocking execution
+
+**Use Cases**: Long-running workflow alerts, batch processing completion, monitoring multiple workflows
+
+📖 [**Full Documentation**](py/docs/SOUND_NOTIFIER_README.md)
+
+---
+
 #### **Save Image (Enhanced)**
 Advanced image saving with flexible naming, metadata embedding, and wildcard integration.
 
