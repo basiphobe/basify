@@ -28,6 +28,9 @@ from .py.sound_notifier import NODE_DISPLAY_NAME_MAPPINGS as sound_notifier_disp
 from .py.display_anything import NODE_CLASS_MAPPINGS as display_anything_nodes
 from .py.display_anything import NODE_DISPLAY_NAME_MAPPINGS as display_anything_display
 
+from .py.conditional_validator import NODE_CLASS_MAPPINGS as conditional_validator_nodes
+from .py.conditional_validator import NODE_DISPLAY_NAME_MAPPINGS as conditional_validator_display
+
 # Import routes to register web endpoints (no exports needed)
 from .py import routes  # noqa: F401
 
@@ -40,7 +43,8 @@ NODE_CLASS_MAPPINGS = {
     **directory_auto_iterator_nodes,
     **ollama_nodes,
     **sound_notifier_nodes,
-    **display_anything_nodes
+    **display_anything_nodes,
+    **conditional_validator_nodes
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -52,7 +56,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **directory_auto_iterator_display,
     **ollama_display,
     **sound_notifier_display,
-    **display_anything_display
+    **display_anything_display,
+    **conditional_validator_display
 }
 
 # Add the directory to the web (i.e client, i.e. javascript) extensions
