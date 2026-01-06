@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Any
 from pathlib import Path
 try:
@@ -36,7 +37,7 @@ class WildcardProcessor:
             "optional": {
                 "enable_wildcards": ("BOOLEAN", {"default": True}),
                 "wildcard_directory": ("STRING", {"default": "/llm/models/image/wildcards"}),
-                "force_refresh": ("STRING", {"default": ""})
+                "force_refresh": ("BOOLEAN", {"default": False})
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -51,13 +52,25 @@ class WildcardProcessor:
     FUNCTION = "process_text"
     CATEGORY = "utils"
 
+    @classmethod
+    def IS_CHANGED(cls, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/llm/models/image/wildcards", force_refresh: bool = False, **kwargs: Any) -> float | str:
+        """
+        Tell ComfyUI when to re-execute this node.
+        When force_refresh is True, always return a new value to bypass caching.
+        """
+        if force_refresh:
+            # Return current timestamp to force re-execution every time
+            return time.time()
+        # Return a constant when force_refresh is False to allow caching
+        return ""
+
     def __init__(self):
         self.display_text: str = ""
         self.wildcards_enabled: bool = True
         self.wildcard_directory: str = "/llm/models/image/wildcards"
         self.opened_path: str | None = None
 
-    def process_text(self, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/llm/models/image/wildcards", force_refresh: str = "", prompt: Any = None, unique_id: str | None = None) -> tuple[str, str]:
+    def process_text(self, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/llm/models/image/wildcards", force_refresh: bool = False, prompt: Any = None, unique_id: str | None = None) -> tuple[str, str]:
         """
         Process the input text and replace wildcards if enabled.
         
@@ -99,7 +112,9 @@ class WildcardProcessor:
             
         try:
             # Process wildcards in the text with force_refresh for increased randomness
-            processed_text: str = process_wildcards_in_text(text, wildcard_directory, force_refresh)  # type: ignore[misc]
+            # When force_refresh is True, use current timestamp to ensure different results each run
+            refresh_seed = str(time.time()) if force_refresh else None
+            processed_text: str = process_wildcards_in_text(text, wildcard_directory, refresh_seed)  # type: ignore[misc]
             logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.GREEN}Successfully processed wildcards in text{Colors.ENDC}")
             self.display_text = processed_text  # Store for display
             

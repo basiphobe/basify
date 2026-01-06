@@ -37,7 +37,7 @@ The **Wildcard Processor** is a ComfyUI custom node that enables dynamic text ge
 |-----------|------|---------|-------------|
 | `enable_wildcards` | BOOLEAN | `True` | Enable/disable wildcard processing |
 | `wildcard_directory` | STRING | `"/llm/models/image/wildcards"` | Directory containing wildcard files |
-| `force_refresh` | STRING | `""` | Any value forces enhanced randomness |
+| `force_refresh` | BOOLEAN | `False` | When enabled, forces new random selections on each execution |
 
 ### Hidden Parameters
 
@@ -138,20 +138,22 @@ pink
 
 ### Randomness Enhancement
 
-**Standard Mode** (`force_refresh` empty):
+**Standard Mode** (`force_refresh` = `False`):
 - Uses Python's standard `random.choice()`
-- Good randomness for most use cases
+- Results are cached by ComfyUI between executions
+- Good for consistent results within a workflow
 
-**Enhanced Mode** (`force_refresh` has any value):
+**Enhanced Mode** (`force_refresh` = `True`):
+- Bypasses ComfyUI's execution cache using timestamps
 - Creates entropy from multiple sources:
   - Current timestamp
-  - Force refresh value
   - Wildcard name
   - Available options count
   - Attempt number
 - Uses MD5 hashing for seed generation
 - Adds microsecond-based secondary randomization
-- Results in more varied selections
+- Results in different selections on every execution
+- Perfect for batch generation with variation
 
 ### Duplicate Prevention
 
