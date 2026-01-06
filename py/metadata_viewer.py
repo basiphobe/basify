@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 # Add Colors class at the top
 class Colors:
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class MetadataViewer:
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, Any]:
         return {
             # input_fields_group: Can be either required, hidden or optional.
             # A "node" class must have property `required`
@@ -31,20 +32,20 @@ class MetadataViewer:
     FUNCTION = "collect_metadata"
     CATEGORY = "basify"
     
-    def collect_metadata(self, image, extra_pnginfo: dict, id: int):
-        metadata = {"id": str(id)}
+    def collect_metadata(self, image: Any, extra_pnginfo: dict[str, Any], id: int) -> tuple[str]:
+        metadata: dict[str, Any] = {"id": str(id)}
         
         # Add all contents from extra_pnginfo
         if extra_pnginfo:
             metadata.update(extra_pnginfo)
 
         # Parse workflow nodes with fallback
-        workflow_data = metadata.get("workflow", {})
-        nodes = self.parse_workflow_nodes(workflow_data) if workflow_data else {}
+        workflow_data: Any = metadata.get("workflow", {})
+        nodes: dict[str, Any] = self.parse_workflow_nodes(workflow_data) if workflow_data else {}
         
         # Create a simplified metadata structure specifically for display
-        display_metadata = {
-            "workflow_name": metadata.get("prompt", {}).get("name", "Unnamed Workflow"),
+        display_metadata: dict[str, Any] = {
+            "workflow_name": metadata.get("prompt", {}).get("name", "Unnamed Workflow"),  # type: ignore[union-attr]
             "nodes": nodes
         }
         
@@ -59,10 +60,10 @@ class MetadataViewer:
         
         return (result,)
 
-    def parse_workflow_nodes(self, workflow_json):
-        workflow_data = None
-        nodes = None
-        sorted_nodes = None
+    def parse_workflow_nodes(self, workflow_json: Any) -> dict[str, Any]:
+        workflow_data: Any = None
+        nodes: Any = None
+        sorted_nodes: Any = None
         
         try:
             # Convert string to JSON if needed
@@ -80,7 +81,7 @@ class MetadataViewer:
             sorted_nodes = sorted(nodes, key=lambda x: x.get("order", 0))
             
             # Create result dictionary
-            result = {}
+            result: dict[str, Any] = {}
             
             # Process each node
             for node in sorted_nodes:

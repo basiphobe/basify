@@ -1,10 +1,10 @@
 import logging
 import random
-import os
 import re
 import time
 import hashlib
 import datetime
+from typing import Any
 from pathlib import Path
 
 class Colors:
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Compile regex pattern once at module level for efficiency
 WILDCARD_PATTERN = re.compile(r'__(.+?)__')
 
-def get_random_line_from_wildcard(wildcard_name, base_dir=None, force_refresh=None):
+def get_random_line_from_wildcard(wildcard_name: str, base_dir: str | None = None, force_refresh: str | None = None) -> str:
     """
     Get a random line from a wildcard file.
     
@@ -31,24 +31,25 @@ def get_random_line_from_wildcard(wildcard_name, base_dir=None, force_refresh=No
     Returns:
         str: A randomly selected line from the wildcard file, or the original wildcard token if error
     """
-    lines = None
-    entropy_string = None
-    entropy_hash = None
+    lines: list[str] | None = None
+    entropy_string: str | None = None
+    entropy_hash: str | None = None
+    wildcard_path: Path | None = None
     
     try:
         # Default to the root wildcards directory if no base_dir provided
         if not base_dir:
             comfyui_root = Path(__file__).parent.parent.parent.parent  # Go up to ComfyUI root
-            base_dir = comfyui_root / "wildcards"  # Default wildcards directory
+            base_dir_path: Path = comfyui_root / "wildcards"  # Default wildcards directory
         else:
-            base_dir = Path(base_dir)
+            base_dir_path = Path(base_dir)
         
         # Ensure wildcard_name is clean and has .txt extension
         wildcard_name = wildcard_name.strip()
         if not wildcard_name.endswith('.txt'):
             wildcard_name = f"{wildcard_name}.txt"
         
-        wildcard_path = base_dir / wildcard_name
+        wildcard_path = base_dir_path / wildcard_name
         
         # Check if file exists
         if not wildcard_path.exists():
@@ -109,7 +110,7 @@ def get_random_line_from_wildcard(wildcard_name, base_dir=None, force_refresh=No
         except (NameError, UnboundLocalError):
             pass
 
-def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_refresh=None, used_replacements=None, max_attempts=50):
+def get_unique_replacement_from_wildcard(wildcard_name: str, base_dir: str | None = None, force_refresh: str | None = None, used_replacements: set[str] | None = None, max_attempts: int = 50) -> str:
     """
     Get a unique random line from a wildcard file that hasn't been used yet.
     
@@ -123,10 +124,11 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
     Returns:
         str: A randomly selected line that hasn't been used yet, or fallback to any line if all are used
     """
-    lines = None
-    available_lines = None
-    entropy_string = None
-    entropy_hash = None
+    lines: list[str] | None = None
+    available_lines: list[str] | None = None
+    entropy_string: str | None = None
+    entropy_hash: str | None = None
+    wildcard_path: Path | None = None
     
     try:
         if used_replacements is None:
@@ -135,16 +137,16 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
         # Default to the root wildcards directory if no base_dir provided
         if not base_dir:
             comfyui_root = Path(__file__).parent.parent.parent.parent  # Go up to ComfyUI root
-            base_dir = comfyui_root / "wildcards"  # Default wildcards directory
+            base_dir_path: Path = comfyui_root / "wildcards"  # Default wildcards directory
         else:
-            base_dir = Path(base_dir)
+            base_dir_path = Path(base_dir)
         
         # Ensure wildcard_name is clean and has .txt extension
         wildcard_name = wildcard_name.strip()
         if not wildcard_name.endswith('.txt'):
             wildcard_name = f"{wildcard_name}.txt"
         
-        wildcard_path = base_dir / wildcard_name
+        wildcard_path = base_dir_path / wildcard_name
         
         # Check if file exists
         if not wildcard_path.exists():
@@ -227,7 +229,7 @@ def get_unique_replacement_from_wildcard(wildcard_name, base_dir=None, force_ref
         except (NameError, UnboundLocalError):
             pass
 
-def process_wildcards_in_text(text, base_dir=None, force_refresh=None):
+def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refresh: str | None = None) -> str:
     """
     Process all wildcard tokens in a text string.
     
@@ -239,8 +241,8 @@ def process_wildcards_in_text(text, base_dir=None, force_refresh=None):
     Returns:
         str: Text with wildcard tokens replaced by random lines
     """
-    matches = None
-    used_replacements = None
+    matches: list[Any] | None = None
+    used_replacements: set[str] | None = None
     
     try:
         if not text:

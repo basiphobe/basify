@@ -2,6 +2,7 @@
 import os
 import json
 import logging
+from typing import Any
 import folder_paths  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ def get_comfy_modules():
 # Global storage for last selected checkpoints per directory
 LAST_SELECTIONS_FILE = os.path.join(os.path.dirname(__file__), ".checkpoint_selections.json")
 
-def load_last_selections():
+def load_last_selections() -> dict[str, str]:
     """Load the last selected checkpoints from disk"""
     try:
         if os.path.exists(LAST_SELECTIONS_FILE):
@@ -24,7 +25,7 @@ def load_last_selections():
         logger.warning(f"Could not load checkpoint selections: {e}")
     return {}
 
-def save_last_selection(directory_path, checkpoint):
+def save_last_selection(directory_path: str, checkpoint: str) -> None:
     """Save the last selected checkpoint for a directory"""
     try:
         selections = load_last_selections()
@@ -36,7 +37,7 @@ def save_last_selection(directory_path, checkpoint):
     except (IOError, OSError) as e:
         logger.warning(f"Could not save checkpoint selection: {e}")
 
-def get_last_selection(directory_path):
+def get_last_selection(directory_path: str) -> str:
     """Get the last selected checkpoint for a directory"""
     try:
         selections = load_last_selections()
@@ -57,10 +58,10 @@ class DirectoryCheckpointScanner:
     def __init__(self):
         self.checkpoint_extensions = ['.ckpt', '.safetensors', '.pt', '.pth']
     
-    def scan_directory_for_checkpoints(self, directory_path):
+    def scan_directory_for_checkpoints(self, directory_path: str) -> list[str]:
         """Scan directory and subdirectories for checkpoint files, following symbolic links."""
-        checkpoints = []
-        seen_real_paths = set()  # Track real paths to avoid duplicates
+        checkpoints: list[str] = []
+        seen_real_paths: set[str] = set()  # Track real paths to avoid duplicates
         
         if not directory_path:
             return ["No directory path provided"]
@@ -73,7 +74,7 @@ class DirectoryCheckpointScanner:
         
         try:
             # Use os.walk with followlinks=True to support symbolic links
-            for root, dirs, files in os.walk(directory_path, followlinks=True):
+            for root, _dirs, files in os.walk(directory_path, followlinks=True):
                 for file in files:
                     if any(file.lower().endswith(ext) for ext in self.checkpoint_extensions):
                         full_path = os.path.join(root, file)
@@ -124,7 +125,7 @@ class DirectoryCheckpointScanner:
             return [f"Error scanning directory: {str(e)}"]
     
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         # Default to ComfyUI's checkpoints directory
         try:
             checkpoint_paths = folder_paths.get_folder_paths("checkpoints")
@@ -155,7 +156,7 @@ class DirectoryCheckpointScanner:
     CATEGORY = "loaders"
     DESCRIPTION = "Scans a directory for checkpoint models with symbolic link support, deduplication, and last selection memory"
     
-    def process(self, directory_path, selected_checkpoint):
+    def process(self, directory_path: str, selected_checkpoint: str) -> tuple[Any, Any, Any, str]:
         """Main processing function that loads selected checkpoint."""
         
         # Validate directory path
@@ -211,7 +212,7 @@ class DirectoryCheckpointScanner:
             
             # Load the checkpoint
             logger.info(f"Loading checkpoint: {full_checkpoint_path}")
-            model, clip, vae = comfy_sd.load_checkpoint_guess_config(
+            model, clip, vae = comfy_sd.load_checkpoint_guess_config(  # type: ignore[misc]
                 full_checkpoint_path, 
                 output_vae=True, 
                 output_clip=True, 

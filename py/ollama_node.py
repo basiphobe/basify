@@ -1,5 +1,5 @@
-import os
 import logging
+from typing import Any
 import comfy.model_management
 from ..clients.ollama_client import ollama_client
 
@@ -24,8 +24,8 @@ class OllamaProcess:
     OUTPUT_NODE = True
 
     @classmethod
-    def INPUT_TYPES(cls):
-        models = ollama_client().models
+    def INPUT_TYPES(cls) -> dict[str, Any]:
+        models: list[str] | None = ollama_client().models  # type: ignore[assignment]
         
         return {
             "required": {
@@ -42,11 +42,9 @@ class OllamaProcess:
             }
         }
 
-    def process_text(self, text, model, system_prompt, temperature, top_p, top_k):
+    def process_text(self, text: str, model: str, system_prompt: str, temperature: float, top_p: float, top_k: int) -> tuple[str]:
         """Process the input text through Ollama and return the result."""
         client = None
-        options = None
-        generate_args = None
         response_obj = None
         
         try:
@@ -60,13 +58,13 @@ class OllamaProcess:
             client = ollama_client()
             
             # Build options for the model
-            options = {
+            options: dict[str, Any] = {
                 "temperature": temperature,
                 "top_p": top_p,
-                "top_k": top_k
+                "top_k": top_k,
             }
             
-            generate_args = {
+            generate_args: dict[str, Any] = {
                 "model": model,
                 "prompt": text,
                 "system": system_prompt,
@@ -76,13 +74,13 @@ class OllamaProcess:
             
             logger.info(f"[{loggerName}] {Colors.YELLOW}Processing with model: {model}{Colors.ENDC}")
             
-            response_obj = client._client.generate(**generate_args)
-            response = response_obj.response if response_obj else "No response received"
+            response_obj = client._client.generate(**generate_args)  # type: ignore[union-attr,arg-type]
+            response: str = str(response_obj.response) if response_obj else "No response received"  # type: ignore[union-attr]
             
             # Don't delete here - let finally block handle cleanup
             
             # Unload model and cleanup after processing
-            client.unload_model(model)
+            client.unload_model(model)  # type: ignore[union-attr]
             logger.info(f"[{loggerName}] {Colors.GREEN}Text processed successfully{Colors.ENDC}")
             
             return (response,)
@@ -94,14 +92,6 @@ class OllamaProcess:
             # Ensure cleanup even on error - use try/except since del removes from namespace
             try:
                 del response_obj
-            except (NameError, UnboundLocalError):
-                pass
-            try:
-                del generate_args
-            except (NameError, UnboundLocalError):
-                pass
-            try:
-                del options
             except (NameError, UnboundLocalError):
                 pass
 

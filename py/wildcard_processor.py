@@ -1,15 +1,15 @@
 import logging
-import time
+from typing import Any
 from pathlib import Path
 try:
-    from .wildcard_handler import process_wildcards_in_text
+    from .wildcard_handler import process_wildcards_in_text  # type: ignore[misc]
 except ImportError:
     # Fallback for when imported outside of the package context
     import sys
     import os
     current_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, current_dir)
-    from wildcard_handler import process_wildcards_in_text
+    from wildcard_handler import process_wildcards_in_text  # type: ignore[misc]
 
 class Colors:
     BLUE   = '\033[94m'
@@ -23,12 +23,12 @@ logger = logging.getLogger(__name__)
 # Global cache to store the most recent wildcard processing results
 # This allows other modules (like save_image) to access the processed text
 # Cache is limited to prevent memory issues
-_wildcard_output_cache = {}
+_wildcard_output_cache: dict[str, str] = {}
 _MAX_CACHE_SIZE = 100
 
 class WildcardProcessor:
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "text": ("STRING", {"default": "", "multiline": True}),
@@ -52,12 +52,12 @@ class WildcardProcessor:
     CATEGORY = "utils"
 
     def __init__(self):
-        self.display_text = ""
-        self.wildcards_enabled = True
-        self.wildcard_directory = "/llm/models/image/wildcards"
-        self.opened_path = None
+        self.display_text: str = ""
+        self.wildcards_enabled: bool = True
+        self.wildcard_directory: str = "/llm/models/image/wildcards"
+        self.opened_path: str | None = None
 
-    def process_text(self, text, enable_wildcards=True, wildcard_directory="/llm/models/image/wildcards", force_refresh="", prompt=None, unique_id=None):
+    def process_text(self, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/llm/models/image/wildcards", force_refresh: str = "", prompt: Any = None, unique_id: str | None = None) -> tuple[str, str]:
         """
         Process the input text and replace wildcards if enabled.
         
@@ -99,7 +99,7 @@ class WildcardProcessor:
             
         try:
             # Process wildcards in the text with force_refresh for increased randomness
-            processed_text = process_wildcards_in_text(text, wildcard_directory, force_refresh)
+            processed_text: str = process_wildcards_in_text(text, wildcard_directory, force_refresh)  # type: ignore[misc]
             logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.GREEN}Successfully processed wildcards in text{Colors.ENDC}")
             self.display_text = processed_text  # Store for display
             
@@ -114,18 +114,18 @@ class WildcardProcessor:
             # Clean up old cache entries if cache is too large
             _cleanup_cache()
             
-            return (processed_text, text)
+            return (processed_text, text)  # type: ignore[return-value]
 
         except Exception as e:
             logger.error(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.RED}Error processing wildcards: {e}{Colors.ENDC}")
             self.display_text = text  # Return original text on error
             return (text, text)
 
-def _cleanup_cache():
+def _cleanup_cache() -> None:
     """Clean up old cache entries to prevent unbounded growth."""
     global _wildcard_output_cache
-    keys_to_keep = None
-    keys_to_remove = None
+    keys_to_keep: set[str] | None = None
+    keys_to_remove: list[str] | None = None
     
     try:
         if len(_wildcard_output_cache) > _MAX_CACHE_SIZE:
@@ -158,21 +158,21 @@ def _cleanup_cache():
         except (NameError, UnboundLocalError):
             pass
 
-def get_latest_wildcard_output():
+def get_latest_wildcard_output() -> str | None:
     """
     Get the most recently processed wildcard text.
     Returns None if no wildcard processing has occurred.
     """
     return _wildcard_output_cache.get("latest", None)
 
-def get_wildcard_output_by_node_id(node_id):
+def get_wildcard_output_by_node_id(node_id: str) -> str | None:
     """
     Get the wildcard output for a specific node ID.
     Returns None if no output found for that node ID.
     """
     return _wildcard_output_cache.get(node_id, None)
 
-def get_all_wildcard_outputs():
+def get_all_wildcard_outputs() -> dict[str, str]:
     """
     Get all cached wildcard outputs.
     Returns a dictionary of {node_id: processed_text}

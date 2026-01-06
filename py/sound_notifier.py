@@ -1,6 +1,7 @@
 import os
 import logging
 import threading
+from typing import Any
 from comfy.comfy_types.node_typing import IO
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class SoundNotifier:
     """ComfyUI node that plays a sound when executed, useful for workflow completion notifications."""
     
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, Any]:
         return {
             "required": {
                 "sound_file": ("STRING", {
@@ -54,17 +55,14 @@ class SoundNotifier:
                 "unique_id": "UNIQUE_ID",
             }
         }
-    IO.ANY, {}
+    
     RETURN_TYPES = ()
     FUNCTION = "play_sound"
     CATEGORY = "basify"
     OUTPUT_NODE = True
 
-    def play_sound(self, sound_file, volume, enabled, unique_id=None, **kwargs):
+    def play_sound(self, sound_file: str, volume: int, enabled: str, unique_id: str | None = None, **kwargs: dict[str, Any]) -> dict[str, Any]:
         """Play a sound notification."""
-        
-        # Extract the trigger input if provided
-        trigger = kwargs.get("trigger", None)
         
         # If disabled, just pass through
         if enabled == "disable":

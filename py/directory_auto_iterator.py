@@ -1,6 +1,6 @@
 import os
-import glob
 import json
+from typing import Any
 from PIL import Image, ImageOps
 import torch
 import numpy as np
@@ -17,7 +17,7 @@ class DirectoryAutoIterator:
         self.state_dir = os.path.join(os.path.dirname(__file__), '.directory_states')
         os.makedirs(self.state_dir, exist_ok=True)
         
-    def get_state_file_path(self, directory_path):
+    def get_state_file_path(self, directory_path: str) -> str | None:
         """Get the path for the state file for this directory."""
         if not directory_path:
             return None
@@ -25,7 +25,7 @@ class DirectoryAutoIterator:
         safe_name = directory_path.replace('/', '_').replace('\\', '_').replace(':', '_')
         return os.path.join(self.state_dir, f"directory_state_{safe_name}.json")
     
-    def load_state(self, directory_path):
+    def load_state(self, directory_path: str) -> dict[str, Any]:
         """Load the current state for this directory."""
         state_file = self.get_state_file_path(directory_path)
         if not state_file or not os.path.exists(state_file):
@@ -43,7 +43,7 @@ class DirectoryAutoIterator:
             print(f"Error loading state: {e}")
             return {"processed_files": [], "directory_path": directory_path, "completed": False}
     
-    def save_state(self, directory_path, state):
+    def save_state(self, directory_path: str, state: dict[str, Any]) -> None:
         """Save the current state for this directory."""
         state_file = self.get_state_file_path(directory_path)
         if not state_file:
@@ -55,15 +55,15 @@ class DirectoryAutoIterator:
         except Exception as e:
             print(f"Error saving state: {e}")
     
-    def reset_state(self, directory_path):
+    def reset_state(self, directory_path: str) -> dict[str, Any]:
         """Reset the state for this directory."""
-        state = {"processed_files": [], "directory_path": directory_path, "completed": False}
+        state: dict[str, Any] = {"processed_files": [], "directory_path": directory_path, "completed": False}
         self.save_state(directory_path, state)
         return state
     
-    def scan_directory_for_images(self, directory_path):
+    def scan_directory_for_images(self, directory_path: str) -> list[str]:
         """Scan directory for image files."""
-        images = []
+        images: list[str] = []
         
         if not os.path.exists(directory_path):
             return []
@@ -82,15 +82,15 @@ class DirectoryAutoIterator:
             print(f"Error scanning directory: {str(e)}")
             return []
     
-    def scan_directory_recursive(self, directory_path):
+    def scan_directory_recursive(self, directory_path: str) -> list[str]:
         """Scan directory and subdirectories for image files."""
-        images = []
+        images: list[str] = []
         
         if not os.path.exists(directory_path):
             return []
         
         try:
-            for root, dirs, files in os.walk(directory_path):
+            for root, _dirs, files in os.walk(directory_path):
                 for file in files:
                     if any(file.lower().endswith(ext) for ext in self.image_extensions):
                         full_path = os.path.join(root, file)
@@ -104,16 +104,18 @@ class DirectoryAutoIterator:
             print(f"Error scanning directory recursively: {str(e)}")
             return []
     
-    def load_image_as_tensor(self, image_path):
+    def load_image_as_tensor(self, image_path: str) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         """Load an image file and convert it to ComfyUI tensor format."""
-        img = None
-        image_pil = None
+        img: Image.Image | None = None
+        image_pil: Image.Image | None = None
         try:
             # Load image using PIL
             img = Image.open(image_path)
             
             # Handle EXIF orientation
-            img = ImageOps.exif_transpose(img)
+            exif_img = ImageOps.exif_transpose(img)
+            if exif_img is not None:
+                img = exif_img
             
             # Convert to RGB if necessary
             image_pil = img.convert("RGB")
@@ -122,22 +124,20 @@ class DirectoryAutoIterator:
             image_np = np.array(image_pil).astype(np.float32) / 255.0
             
             # Convert to tensor with shape [1, H, W, 3] (batch, height, width, channels)
-            image_tensor = torch.from_numpy(image_np)[None,]
+            image_tensor: torch.Tensor = torch.from_numpy(image_np)[None,]  # type: ignore[arg-type]
             
             # Create mask (for compatibility with Load Image node)
             if 'A' in img.getbands():
                 mask_np = np.array(img.getchannel('A')).astype(np.float32) / 255.0
-                mask_tensor = 1. - torch.from_numpy(mask_np)
+                mask_tensor: torch.Tensor = 1. - torch.from_numpy(mask_np)  # type: ignore[arg-type]
                 del mask_np
             else:
                 mask_tensor = torch.zeros((image_np.shape[0], image_np.shape[1]), dtype=torch.float32)
             
             # Clean up intermediate objects
             del image_np
-            if image_pil is not None:
-                image_pil.close()
-            if img is not None:
-                img.close()
+            image_pil.close()
+            img.close()
             
             return image_tensor, mask_tensor
             
@@ -151,7 +151,7 @@ class DirectoryAutoIterator:
             return None, None
     
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "directory_path": ("STRING", {
@@ -182,13 +182,13 @@ class DirectoryAutoIterator:
     DESCRIPTION = "Automatically iterates through all images in directory, one per workflow execution"
     
     @classmethod
-    def IS_CHANGED(cls, directory_path, process_subdirectories, reset_on_directory_change, reset_progress="false"):
+    def IS_CHANGED(cls, directory_path: str, process_subdirectories: str, reset_on_directory_change: str, reset_progress: str = "false") -> float:
         """Force re-execution on every run to process the next image."""
         # This is the key - returning a random value forces ComfyUI to re-execute
         import random
         return random.random()
     
-    def load_next_image(self, directory_path, process_subdirectories, reset_on_directory_change, reset_progress="false"):
+    def load_next_image(self, directory_path: str, process_subdirectories: str, reset_on_directory_change: str, reset_progress: str = "false") -> tuple[torch.Tensor | None, torch.Tensor | None, str, str, int, int, bool, str]:
         """Load the next image in the sequence."""
         
         # Validate directory path
@@ -237,10 +237,10 @@ class DirectoryAutoIterator:
             return (None, None, "", "", len(processed_files), total_count, False, status)
         
         # Try to load images until we find one that works
-        image = None
-        mask = None
-        current_image_path = None
-        filename = None
+        image: torch.Tensor | None = None
+        mask: torch.Tensor | None = None
+        current_image_path: str = ""
+        filename: str = ""
         
         for attempt_path in unprocessed_images:
             # Check if file still exists (handle race conditions)

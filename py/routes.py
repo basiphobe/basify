@@ -1,6 +1,7 @@
 import logging
 import server
 import os
+from typing import Any
 from aiohttp import web
 
 class Colors:
@@ -12,15 +13,15 @@ class Colors:
 
 logger = logging.getLogger(__name__)
 
-async def scan_directory_for_checkpoints(request):
+async def scan_directory_for_checkpoints(request: web.Request) -> web.Response:
     """API endpoint to scan a directory for checkpoint files"""
-    payload = None
-    checkpoints = None
-    visited_paths = None
+    payload: Any = None
+    checkpoints: list[str] | None = None
+    visited_paths: set[str] | None = None
     
     try:
         payload = await request.json()
-        directory_path = payload.get("directory_path", "")
+        directory_path: str = payload.get("directory_path", "")
         
         if not directory_path:
             return web.json_response({"error": "No directory path provided"}, status=400)
@@ -34,7 +35,7 @@ async def scan_directory_for_checkpoints(request):
         
         try:
             # Use os.walk with followlinks=True to support symbolic links
-            for root, dirs, files in os.walk(directory_path, followlinks=True):
+            for root, _dirs, files in os.walk(directory_path, followlinks=True):
                 # Prevent infinite loops from circular symlinks
                 real_root = os.path.realpath(root)
                 if real_root in visited_paths:
@@ -90,13 +91,13 @@ async def scan_directory_for_checkpoints(request):
         except (NameError, UnboundLocalError):
             pass
 
-async def test_sound(request):
+async def test_sound(request: web.Request) -> web.Response:
     """API endpoint to test sound playback"""
     try:
-        payload = await request.json()
-        sound_file = payload.get("sound_file", "~/Music/that-was-quick.mp3")
-        volume = payload.get("volume", 100)
-        enabled = payload.get("enabled", "enable")
+        payload: Any = await request.json()
+        sound_file: str = payload.get("sound_file", "~/Music/that-was-quick.mp3")
+        volume: int = payload.get("volume", 100)
+        enabled: str = payload.get("enabled", "enable")
         
         if enabled == "disable":
             logger.info(f"{Colors.BLUE}[BASIFY Sound Test]{Colors.ENDC} {Colors.YELLOW}Sound disabled, skipping test{Colors.ENDC}")

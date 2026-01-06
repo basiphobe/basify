@@ -1,11 +1,9 @@
 import logging
-import os
 import base64
-import json
 import requests
 from io import BytesIO
+from typing import Any
 from PIL import Image
-import torch
 import numpy as np
 
 class Colors:
@@ -27,7 +25,7 @@ class DescribeImage:
     RETURN_TYPES = ("IMAGE", "STRING",)
 
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, Any]:
         return {
             "required": {
                 "image": ("IMAGE",),
@@ -40,7 +38,7 @@ class DescribeImage:
             }
         }
 
-    def describe_image(self, image, model, server_url, temperature=0.7, max_tokens=500):
+    def describe_image(self, image: Any, model: str, server_url: str, temperature: float = 0.7, max_tokens: int = 500) -> tuple[Any, str]:
         buffered = None
         pil_image = None
         img_array = None
@@ -88,7 +86,7 @@ class DescribeImage:
             """
 
             # Prepare the request payload for Ollama
-            payload = {
+            payload: dict[str, Any] = {
                 "model": model,
                 "prompt": prompt,
                 "images": [img_str],
@@ -125,7 +123,7 @@ class DescribeImage:
             # Attempt to unload the model from memory
             try:
                 logger.info(f"{loggerName} Unloading model: {model} from memory")
-                unload_payload = {
+                unload_payload: dict[str, Any] = {
                     "model": model,
                     "prompt": "",
                     "keep_alive": 0

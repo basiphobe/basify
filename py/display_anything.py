@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 from comfy.comfy_types.node_typing import IO
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class DisplayAnythingAsText:
     MAX_DISPLAY_LENGTH = 50000
     
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "value": (IO.ANY, {
@@ -34,7 +35,7 @@ class DisplayAnythingAsText:
     CATEGORY = "basify"
     OUTPUT_NODE = True
     
-    def display_value(self, value, unique_id=None):
+    def display_value(self, value: Any, unique_id: str | None = None) -> dict[str, Any]:
         """Convert the input value to displayable text and pass it through.
         
         Args:
@@ -62,7 +63,7 @@ class DisplayAnythingAsText:
             logger.error(f"[BASIFY Display Anything] {error_text}")
             return {"ui": {"text": [error_text]}, "result": (value,)}
     
-    def _convert_to_text(self, value):
+    def _convert_to_text(self, value: Any) -> str:
         """Convert any value to a displayable text representation.
         
         Args:
@@ -119,12 +120,12 @@ class DisplayAnythingAsText:
         
         # Handle sets
         if isinstance(value, set):
-            return f"set({list(value)})"
+            return f"set({list(value)})"  # type: ignore[arg-type]
         
         # Try to get a readable string representation
         return self._safe_repr(value)
     
-    def _tensor_to_text(self, tensor):
+    def _tensor_to_text(self, tensor: Any) -> str:
         """Convert a PyTorch tensor to detailed text representation.
         
         Args:
@@ -137,39 +138,39 @@ class DisplayAnythingAsText:
         
         lines = [
             f"PyTorch Tensor",
-            f"  Shape: {tuple(tensor.shape)}",
-            f"  Dtype: {tensor.dtype}",
-            f"  Device: {tensor.device}",
-            f"  Requires grad: {tensor.requires_grad}",
+            f"  Shape: {tuple(tensor.shape)}",  # type: ignore[arg-type]
+            f"  Dtype: {tensor.dtype}",  # type: ignore[attr-defined]
+            f"  Device: {tensor.device}",  # type: ignore[attr-defined]
+            f"  Requires grad: {tensor.requires_grad}",  # type: ignore[attr-defined]
         ]
         
         # Add statistics for numeric tensors
-        if tensor.dtype in (torch.float16, torch.float32, torch.float64, torch.bfloat16,
+        if tensor.dtype in (torch.float16, torch.float32, torch.float64, torch.bfloat16,  # type: ignore[attr-defined]
                            torch.int8, torch.int16, torch.int32, torch.int64,
                            torch.uint8):
             try:
                 # Move to CPU for statistics if needed
-                cpu_tensor = tensor.detach().cpu() if tensor.is_cuda else tensor.detach()
+                cpu_tensor = tensor.detach().cpu() if tensor.is_cuda else tensor.detach()  # type: ignore[attr-defined]
                 
                 lines.extend([
-                    f"  Min: {cpu_tensor.min().item():.6f}",
-                    f"  Max: {cpu_tensor.max().item():.6f}",
-                    f"  Mean: {cpu_tensor.float().mean().item():.6f}",
-                    f"  Std: {cpu_tensor.float().std().item():.6f}",
+                    f"  Min: {cpu_tensor.min().item():.6f}",  # type: ignore[attr-defined]
+                    f"  Max: {cpu_tensor.max().item():.6f}",  # type: ignore[attr-defined]
+                    f"  Mean: {cpu_tensor.float().mean().item():.6f}",  # type: ignore[attr-defined]
+                    f"  Std: {cpu_tensor.float().std().item():.6f}",  # type: ignore[attr-defined]
                 ])
                 
                 # Show a sample of values for small tensors
-                if tensor.numel() <= 100:
+                if tensor.numel() <= 100:  # type: ignore[attr-defined]
                     lines.append(f"\nValues:\n{cpu_tensor}")
-                elif tensor.numel() <= 1000:
-                    lines.append(f"\nFirst 100 values:\n{cpu_tensor.flatten()[:100]}")
+                elif tensor.numel() <= 1000:  # type: ignore[attr-defined]
+                    lines.append(f"\nFirst 100 values:\n{cpu_tensor.flatten()[:100]}")  # type: ignore[attr-defined]
                     
             except Exception as e:
                 lines.append(f"  (Statistics unavailable: {e})")
         
         return "\n".join(lines)
     
-    def _numpy_to_text(self, array):
+    def _numpy_to_text(self, array: Any) -> str:
         """Convert a NumPy array to detailed text representation.
         
         Args:
@@ -182,9 +183,9 @@ class DisplayAnythingAsText:
         
         lines = [
             f"NumPy Array",
-            f"  Shape: {array.shape}",
-            f"  Dtype: {array.dtype}",
-            f"  Size: {array.size} elements",
+            f"  Shape: {array.shape}",  # type: ignore[attr-defined]
+            f"  Dtype: {array.dtype}",  # type: ignore[attr-defined]
+            f"  Size: {array.size} elements",  # type: ignore[attr-defined]
         ]
         
         # Add statistics for numeric arrays
@@ -212,7 +213,7 @@ class DisplayAnythingAsText:
         
         return "\n".join(lines)
     
-    def _safe_repr(self, value):
+    def _safe_repr(self, value: Any) -> str:
         """Safely get a string representation of any value.
         
         Args:

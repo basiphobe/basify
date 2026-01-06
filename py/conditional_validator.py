@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from comfy.comfy_types.node_typing import IO
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ class ConditionalValidator:
     """
     
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "condition": ("BOOLEAN", {
@@ -40,7 +41,7 @@ class ConditionalValidator:
     FUNCTION = "validate_and_pass"
     CATEGORY = "basify"
     
-    def validate_and_pass(self, condition, value, error_message="Validation failed: condition is False"):
+    def validate_and_pass(self, condition: bool, value: Any, error_message: str = "Validation failed: condition is False") -> tuple[Any]:
         """Validate the condition and pass through the value or raise an error.
         
         Args:

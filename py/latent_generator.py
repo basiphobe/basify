@@ -1,4 +1,5 @@
 import torch
+from typing import Any
 import comfy.model_management
 
 class LatentGenerator:
@@ -11,7 +12,7 @@ class LatentGenerator:
     - Standard ComfyUI latent format output
     """
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, Any]:
         # Predefined resolutions organized by common aspect ratios
         predefined_resolutions = [
             # Square (1:1) - Most versatile
@@ -68,7 +69,7 @@ class LatentGenerator:
         }
     
     @classmethod
-    def VALIDATE_INPUTS(cls, resolution_mode, predefined_resolution, manual_width, manual_height, batch_size):
+    def VALIDATE_INPUTS(cls, resolution_mode: str, predefined_resolution: str, manual_width: int, manual_height: int, batch_size: int) -> bool | str:
         if resolution_mode == "manual":
             # Validate manual dimensions are multiples of 8 (required for latent space division)
             if manual_width % 8 != 0:
@@ -82,7 +83,7 @@ class LatentGenerator:
     FUNCTION = "generate_latent"
     CATEGORY = "latent"
 
-    def generate_latent(self, resolution_mode, predefined_resolution, manual_width, manual_height, batch_size):
+    def generate_latent(self, resolution_mode: str, predefined_resolution: str, manual_width: int, manual_height: int, batch_size: int) -> tuple[dict[str, torch.Tensor], int, int]:
         # Determine width and height based on mode
         if resolution_mode == "predefined":
             # Parse predefined resolution (format: "width×height (aspect) - description")
@@ -100,11 +101,11 @@ class LatentGenerator:
         
         try:
             # Get device at runtime for better flexibility
-            device = comfy.model_management.intermediate_device()
+            device = comfy.model_management.intermediate_device()  # type: ignore[no-any-return]
             
             # Generate latent tensor
             # Standard latent format: [batch_size, channels, height//8, width//8]
-            latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=device)
+            latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=device)  # type: ignore[arg-type]
             
             return ({"samples": latent}, width, height)
         

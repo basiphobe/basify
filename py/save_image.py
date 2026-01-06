@@ -6,6 +6,7 @@ import random
 import string
 import uuid
 import re
+from typing import Any
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import torch
@@ -26,7 +27,7 @@ class SaveImageCustomPath:
     lock = threading.Lock()
 
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
                 "image": ("IMAGE",),
@@ -64,7 +65,7 @@ class SaveImageCustomPath:
     RETURN_NAMES = ("image", "saved_path", "uuid",)
 
     @staticmethod
-    def _save_image_file(image_to_save, file_path, file_extension, metadata_enabled, prompt=None, extra_pnginfo=None):
+    def _save_image_file(image_to_save: Image.Image, file_path: str, file_extension: str, metadata_enabled: bool, prompt: Any = None, extra_pnginfo: Any = None) -> None:
         """Helper method to save image with appropriate format and metadata."""
         if metadata_enabled and file_extension.lower() == 'png':
             # Match ComfyUI's native SaveImage format exactly for drag-and-drop support
@@ -85,7 +86,7 @@ class SaveImageCustomPath:
             image_to_save.save(file_path)
 
     @staticmethod
-    def replace_path_variables(path, now=None, uuid_value=None):
+    def replace_path_variables(path: str, now: datetime.datetime | None = None, uuid_value: str | None = None) -> str:
         """Replace all dynamic variables in the path string.
         
         Supported variables:
@@ -116,10 +117,10 @@ class SaveImageCustomPath:
         # Generate random values (fresh each time unless uuid_value provided)
         random_number = random.randint(100000, 999999)
         random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        uuid_string = uuid_value if uuid_value else str(uuid.uuid4())[:8]
+        uuid_string: str = uuid_value if uuid_value else str(uuid.uuid4())[:8]
         
         # Replace all variables
-        replacements = {
+        replacements: dict[str, str] = {
             '{date}': now.strftime('%Y-%m-%d'),
             '{time}': now.strftime('%H-%M-%S'),
             '{datetime}': now.strftime('%Y-%m-%d_%H-%M-%S'),
@@ -140,17 +141,14 @@ class SaveImageCustomPath:
         
         return path
 
-    def save_image(self, image, custom_folder, filename_prefix, file_extension, save_metadata, text_content="", save_text="disable", session_uuid="", prompt=None, extra_pnginfo=None, unique_id=None):
+    def save_image(self, image: torch.Tensor, custom_folder: str, filename_prefix: str, file_extension: str, save_metadata: str, text_content: str = "", save_text: str = "disable", session_uuid: str = "", prompt: Any = None, extra_pnginfo: Any = None, unique_id: str | None = None) -> tuple[torch.Tensor, str, str]:
         logger.info(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.GREEN}Saving image with custom path: {custom_folder}{Colors.ENDC}")
         
         # Handle empty string from old workflows for save_text
         if save_text == "":
             save_text = "disable"
         
-        # Validate input is a tensor
-        if not isinstance(image, torch.Tensor):
-            logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Expected torch.Tensor, got {type(image)}{Colors.ENDC}")
-            return (image, "", "")
+        # image parameter is already typed as torch.Tensor, no runtime check needed
         
         # Use provided session_uuid or generate a new one
         if session_uuid and session_uuid.strip():
@@ -158,8 +156,7 @@ class SaveImageCustomPath:
         else:
             folder_uuid = str(uuid.uuid4())[:8]
         
-        saved_paths = []
-        save_array = None  # Initialize to avoid potential unbound variable
+        saved_paths: list[str] = []
         
         try:
             # Convert tensor to numpy array for saving
@@ -193,13 +190,13 @@ class SaveImageCustomPath:
                         logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Unexpected tensor shape: {original_shape}{Colors.ENDC}")
                         continue
 
-                    save_array = current_tensor.squeeze().numpy()
+                    save_array: np.ndarray[Any, Any] = current_tensor.squeeze().numpy()  # type: ignore[call-overload]
 
                     # Validate final shape
                     if not (len(save_array.shape) == 3 and save_array.shape[-1] == 3):
                         if len(save_array.shape) == 2:
                             # Grayscale - convert to RGB
-                            save_array = np.stack([save_array] * 3, axis=-1)
+                            save_array = np.stack([save_array] * 3, axis=-1)  # type: ignore[arg-type]
                         else:
                             logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Invalid final shape: {save_array.shape}{Colors.ENDC}")
                             continue
@@ -226,15 +223,23 @@ class SaveImageCustomPath:
                         # Determine if we're using counter mode (format string anywhere in path or filename)
                         using_counter = folder_format_match or filename_format_match
                         
+                        # Initialize to avoid unbound errors
+                        current_folder: str = custom_folder
+                        
                         if using_counter:
                             # Extract format details
                             if folder_format_match:
                                 format_str = folder_format_match.group(0)
                                 padding_width = int(folder_format_match.group(1)) if folder_format_match.group(1) else 0
-                                template_folder = custom_folder
-                            else:
+                                template_folder: str = current_folder
+                            elif filename_format_match:
                                 format_str = filename_format_match.group(0)
                                 padding_width = int(filename_format_match.group(1)) if filename_format_match.group(1) else 0
+                                template_folder = custom_folder
+                            else:
+                                # Should never happen but add fallback
+                                format_str = "{:d}"
+                                padding_width = 0
                                 template_folder = custom_folder
                             
                             template_filename = filename_prefix
@@ -300,8 +305,6 @@ class SaveImageCustomPath:
             
             # Explicitly delete large arrays to free memory
             del save_tensor
-            if save_array is not None:
-                del save_array
             
             # Return the original image tensor, all saved paths, and the UUID used
             return (image, ";".join(saved_paths), folder_uuid)

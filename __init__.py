@@ -1,4 +1,5 @@
 import os
+from typing import Any
 import nodes
 
 from .py.save_image import NODE_CLASS_MAPPINGS as save_image_nodes
@@ -32,9 +33,9 @@ from .py.conditional_validator import NODE_CLASS_MAPPINGS as conditional_validat
 from .py.conditional_validator import NODE_DISPLAY_NAME_MAPPINGS as conditional_validator_display
 
 # Import routes to register web endpoints (no exports needed)
-from .py import routes  # noqa: F401
+from .py import routes  # noqa: F401  # type: ignore[unused-ignore]
 
-NODE_CLASS_MAPPINGS = {
+NODE_CLASS_MAPPINGS: dict[str, type[Any]] = {
     **save_image_nodes,
     **metadata_nodes,
     **wildcard_nodes,
@@ -47,7 +48,7 @@ NODE_CLASS_MAPPINGS = {
     **conditional_validator_nodes
 }
 
-NODE_DISPLAY_NAME_MAPPINGS = {
+NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
     **save_image_display,
     **metadata_display,
     **wildcard_display,
@@ -61,6 +62,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 # Add the directory to the web (i.e client, i.e. javascript) extensions
-nodes.EXTENSION_WEB_DIRS["Basify"] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'js')
+nodes.EXTENSION_WEB_DIRS["Basify"] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'js')  # type: ignore[index]
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
