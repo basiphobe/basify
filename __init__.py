@@ -1,6 +1,6 @@
 import os
 from typing import Any
-import nodes
+import nodes  # type: ignore[import-not-found]
 
 from .py.save_image import NODE_CLASS_MAPPINGS as save_image_nodes
 from .py.save_image import NODE_DISPLAY_NAME_MAPPINGS as save_image_display
@@ -32,6 +32,12 @@ from .py.display_anything import NODE_DISPLAY_NAME_MAPPINGS as display_anything_
 from .py.conditional_validator import NODE_CLASS_MAPPINGS as conditional_validator_nodes
 from .py.conditional_validator import NODE_DISPLAY_NAME_MAPPINGS as conditional_validator_display
 
+from .py.number_randomizer import NODE_CLASS_MAPPINGS as number_randomizer_nodes
+from .py.number_randomizer import NODE_DISPLAY_NAME_MAPPINGS as number_randomizer_display
+
+from .py.latent_upscaler import NODE_CLASS_MAPPINGS as latent_upscaler_nodes
+from .py.latent_upscaler import NODE_DISPLAY_NAME_MAPPINGS as latent_upscaler_display
+
 # Import routes to register web endpoints (no exports needed)
 from .py import routes  # noqa: F401  # type: ignore[unused-ignore]
 
@@ -45,7 +51,9 @@ NODE_CLASS_MAPPINGS: dict[str, type[Any]] = {
     **ollama_nodes,
     **sound_notifier_nodes,
     **display_anything_nodes,
-    **conditional_validator_nodes
+    **conditional_validator_nodes,
+    **number_randomizer_nodes,
+    **latent_upscaler_nodes
 }
 
 NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
@@ -58,7 +66,9 @@ NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
     **ollama_display,
     **sound_notifier_display,
     **display_anything_display,
-    **conditional_validator_display
+    **conditional_validator_display,
+    **number_randomizer_display,
+    **latent_upscaler_display
 }
 
 # Add the directory to the web (i.e client, i.e. javascript) extensions

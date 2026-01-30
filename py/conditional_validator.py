@@ -1,6 +1,11 @@
 import logging
 from typing import Any
-from comfy.comfy_types.node_typing import IO
+
+try:
+    from comfy.comfy_types.node_typing import IO  # type: ignore[import]
+except Exception:  # pragma: no cover - comfy types unavailable in static analysis/runtime
+    class IO:  # minimal fallback for static analysis and tests
+        ANY = "ANY"
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +41,7 @@ class ConditionalValidator:
             }
         }
     
-    RETURN_TYPES = (IO.ANY,)
+    RETURN_TYPES = (IO.ANY,)  # type: ignore[misc]
     RETURN_NAMES = ("value",)
     FUNCTION = "validate_and_pass"
     CATEGORY = "basify"
