@@ -44,6 +44,9 @@ from .py.llm_image_refine import NODE_DISPLAY_NAME_MAPPINGS as llm_image_refine_
 from .py.vae_decode_preview import NODE_CLASS_MAPPINGS as vae_decode_preview_nodes
 from .py.vae_decode_preview import NODE_DISPLAY_NAME_MAPPINGS as vae_decode_preview_display
 
+from .py.lazy_conditional_switch import NODE_CLASS_MAPPINGS as lazy_conditional_switch_nodes
+from .py.lazy_conditional_switch import NODE_DISPLAY_NAME_MAPPINGS as lazy_conditional_switch_display
+
 # Import routes to register web endpoints (no exports needed)
 from .py import routes  # noqa: F401  # type: ignore[unused-ignore]
 
@@ -61,7 +64,8 @@ NODE_CLASS_MAPPINGS: dict[str, type[Any]] = {
     **number_randomizer_nodes,
     **latent_upscaler_nodes,
     **llm_image_refine_nodes,
-    **vae_decode_preview_nodes
+    **vae_decode_preview_nodes,
+    **lazy_conditional_switch_nodes
 }
 
 NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
@@ -78,7 +82,8 @@ NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
     **number_randomizer_display,
     **latent_upscaler_display,
     **llm_image_refine_display,
-    **vae_decode_preview_display
+    **vae_decode_preview_display,
+    **lazy_conditional_switch_display
 }
 
 # Add the directory to the web (i.e client, i.e. javascript) extensions
