@@ -38,6 +38,12 @@ from .py.number_randomizer import NODE_DISPLAY_NAME_MAPPINGS as number_randomize
 from .py.latent_upscaler import NODE_CLASS_MAPPINGS as latent_upscaler_nodes
 from .py.latent_upscaler import NODE_DISPLAY_NAME_MAPPINGS as latent_upscaler_display
 
+from .py.llm_image_refine import NODE_CLASS_MAPPINGS as llm_image_refine_nodes
+from .py.llm_image_refine import NODE_DISPLAY_NAME_MAPPINGS as llm_image_refine_display
+
+from .py.vae_decode_preview import NODE_CLASS_MAPPINGS as vae_decode_preview_nodes
+from .py.vae_decode_preview import NODE_DISPLAY_NAME_MAPPINGS as vae_decode_preview_display
+
 # Import routes to register web endpoints (no exports needed)
 from .py import routes  # noqa: F401  # type: ignore[unused-ignore]
 
@@ -53,7 +59,9 @@ NODE_CLASS_MAPPINGS: dict[str, type[Any]] = {
     **display_anything_nodes,
     **conditional_validator_nodes,
     **number_randomizer_nodes,
-    **latent_upscaler_nodes
+    **latent_upscaler_nodes,
+    **llm_image_refine_nodes,
+    **vae_decode_preview_nodes
 }
 
 NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
@@ -68,7 +76,9 @@ NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
     **display_anything_display,
     **conditional_validator_display,
     **number_randomizer_display,
-    **latent_upscaler_display
+    **latent_upscaler_display,
+    **llm_image_refine_display,
+    **vae_decode_preview_display
 }
 
 # Add the directory to the web (i.e client, i.e. javascript) extensions

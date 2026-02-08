@@ -8,9 +8,9 @@ import folder_paths  # type: ignore
 logger = logging.getLogger(__name__)
 
 # Lazy imports for ComfyUI modules that might not be available during package loading
-def get_comfy_modules():
-    import comfy.sd  # type: ignore
-    return comfy.sd
+def get_comfy_modules():  # type: ignore[no-any-return]
+    import comfy.sd  # type: ignore[import]
+    return comfy.sd  # type: ignore[return-value]
 
 # Global storage for last selected checkpoints per directory
 LAST_SELECTIONS_FILE = os.path.join(os.path.dirname(__file__), ".checkpoint_selections.json")
@@ -128,13 +128,13 @@ class DirectoryCheckpointScanner:
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         # Default to ComfyUI's checkpoints directory
         try:
-            checkpoint_paths = folder_paths.get_folder_paths("checkpoints")
-            default_checkpoint_dir = checkpoint_paths[0] if checkpoint_paths else ""
+            checkpoint_paths = folder_paths.get_folder_paths("checkpoints")  # type: ignore[attr-defined]
+            default_checkpoint_dir = checkpoint_paths[0] if checkpoint_paths else ""  # type: ignore[index]
         except (IndexError, AttributeError, KeyError):
             default_checkpoint_dir = ""
         
         # Get the last selected checkpoint for the default directory
-        last_checkpoint = get_last_selection(default_checkpoint_dir) if default_checkpoint_dir else ""
+        last_checkpoint = get_last_selection(default_checkpoint_dir) if default_checkpoint_dir else ""  # type: ignore[arg-type]
         
         return {
             "required": {
@@ -208,7 +208,7 @@ class DirectoryCheckpointScanner:
         
         try:
             # Get the modules when needed
-            comfy_sd = get_comfy_modules()
+            comfy_sd = get_comfy_modules()  # type: ignore[misc]
             
             # Load the checkpoint
             logger.info(f"Loading checkpoint: {full_checkpoint_path}")
@@ -216,11 +216,11 @@ class DirectoryCheckpointScanner:
                 full_checkpoint_path, 
                 output_vae=True, 
                 output_clip=True, 
-                embedding_directory=folder_paths.get_folder_paths("embeddings")
+                embedding_directory=folder_paths.get_folder_paths("embeddings")  # type: ignore[attr-defined]
             )[:3]
             
             logger.info(f"Successfully loaded checkpoint: {os.path.basename(full_checkpoint_path)}")
-            return (model, clip, vae, full_checkpoint_path)
+            return (model, clip, vae, full_checkpoint_path)  # type: ignore[return-value]
             
         except Exception as e:
             logger.error(f"Failed to load checkpoint {full_checkpoint_path}: {e}")

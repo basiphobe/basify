@@ -116,12 +116,18 @@ class OllamaClient:
             return {}
         finally:
             # Ensure cleanup even on error
-            if details_dict is not None:
+            try:
                 del details_dict
-            if model_info_dict is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del model_info_dict
-            if parameters_dict is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del parameters_dict
+            except (NameError, UnboundLocalError):
+                pass
         
     def get_model_information(self, model_name):
         try:
@@ -133,6 +139,9 @@ class OllamaClient:
 
     def _load_system_prompt(self, prompt_assistant='Strict'):
         try:
+            # Use default if None is passed
+            if prompt_assistant is None:
+                prompt_assistant = 'Strict'
             filename = f'{prompt_assistant.lower()}.txt'
             prompt_path = os.path.join(os.path.dirname(__file__), '../../js/assistants/' + filename)
             with open(prompt_path, 'r') as file:
@@ -224,11 +233,12 @@ class OllamaClient:
             return f"{system_prompt}\n{user_prompt}"
         finally:
             # Ensure cleanup even on error
-            if context is not None:
-                del context    
+            try:
+                del context
+            except (NameError, UnboundLocalError):
+                pass    
 
-    def process_template(self, model, user_prompt, temperature=0.3, presence_penalty=0, frequency_penalty=0, top_p=0.95, top_k=40, prompt_assistant=None):
-        system_prompt = None
+    def process_template(self, model, user_prompt, temperature=0.3, presence_penalty=0, frequency_penalty=0, top_p=0.95, top_k=40, prompt_assistant=None, system_prompt=None):
         model_info = None
         options = None
         generate_args = None
@@ -239,7 +249,10 @@ class OllamaClient:
             comfy.model_management.unload_all_models()
             comfy.model_management.soft_empty_cache(force=True)
             
-            system_prompt = self._load_system_prompt(prompt_assistant)
+            # Only load assistant if explicitly requested and no system_prompt provided
+            if system_prompt is None and prompt_assistant is not None:
+                system_prompt = self._load_system_prompt(prompt_assistant)
+            
             model_info = self.get_model_information(model)
             
             # Build the options dictionary based on the parameters provided
@@ -258,10 +271,13 @@ class OllamaClient:
             generate_args = {
                 "model": model,
                 "prompt": user_prompt,
-                "system": system_prompt,
                 "stream": False,
                 "options": options
             }
+            
+            # Only add system prompt if provided
+            if system_prompt:
+                generate_args["system"] = system_prompt
 
             logger.info(f"[{loggerName}] {Colors.YELLOW}generate_args: {generate_args}{Colors.ENDC}")
 
@@ -292,7 +308,6 @@ class OllamaClient:
             del generate_args
             del options
             del model_info
-            del system_prompt
             
             return result
 
@@ -301,16 +316,22 @@ class OllamaClient:
             return f"Error processing template: {str(e)}"
         finally:
             # Ensure cleanup even on error
-            if response is not None:
+            try:
                 del response
-            if generate_args is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del generate_args
-            if options is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del options
-            if model_info is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del model_info
-            if system_prompt is not None:
-                del system_prompt
+            except (NameError, UnboundLocalError):
+                pass
 
     def process_image(self, model, image_tensor, temperature=0.3, top_p=0.95, top_k=40, prompt_assistant=None, custom_system_prompt=None):
         image_np = None
@@ -407,41 +428,182 @@ class OllamaClient:
             # Always unload the model after processing
             self.unload_model(model)
             
-            # Clean up large objects
+            # Clean up large objects (finally block will handle base64_image)
+            result = cleaned_response
+            
             del response
             del generate_args
             del options
             del model_info
             del system_prompt
-            del base64_image
             
-            return cleaned_response
+            return result
 
         except Exception as e:
             logger.error(f"[{loggerName}] {Colors.RED}Error in process_image: {str(e)}{Colors.ENDC}")
             return f"Error processing image: {str(e)}"
         finally:
             # Ensure cleanup even on error
-            if pil_image is not None:
-                pil_image.close()
+            try:
+                if pil_image is not None:
+                    pil_image.close()
                 del pil_image
-            if buffer is not None:
-                buffer.close()
+            except (NameError, UnboundLocalError):
+                pass
+            try:
+                if buffer is not None:
+                    buffer.close()
                 del buffer
-            if image_np is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del image_np
-            if base64_image is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del base64_image
-            if response is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del response
-            if generate_args is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del generate_args
-            if options is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del options
-            if model_info is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del model_info
-            if system_prompt is not None:
+            except (NameError, UnboundLocalError):
+                pass
+            try:
                 del system_prompt
+            except (NameError, UnboundLocalError):
+                pass
+
+    def process_image_with_text_refinement(
+        self, 
+        image_tensor, 
+        vision_model, 
+        text_model,
+        user_instructions,
+        vision_temperature=0.3,
+        vision_top_p=0.95, 
+        vision_top_k=40,
+        text_temperature=0.7,
+        text_presence_penalty=0,
+        text_frequency_penalty=0,
+        text_top_p=0.95,
+        text_top_k=40,
+        vision_prompt_assistant=None,
+        text_prompt_assistant=None,
+        custom_vision_prompt=None
+    ):
+        """
+        Two-stage processing: 
+        1. Vision model describes the image
+        2. Text model processes the description with user instructions
+        
+        Args:
+            image_tensor: Input image tensor
+            vision_model: Model name for image description
+            text_model: Model name for text processing
+            user_instructions: User-provided processing instructions
+            vision_temperature: Temperature for vision model (default: 0.3)
+            vision_top_p: Top-p for vision model (default: 0.95)
+            vision_top_k: Top-k for vision model (default: 40)
+            text_temperature: Temperature for text model (default: 0.7)
+            text_presence_penalty: Presence penalty for text model (default: 0)
+            text_frequency_penalty: Frequency penalty for text model (default: 0)
+            text_top_p: Top-p for text model (default: 0.95)
+            text_top_k: Top-k for text model (default: 40)
+            vision_prompt_assistant: Assistant preset for vision stage
+            text_prompt_assistant: Assistant preset for text stage
+            custom_vision_prompt: Custom system prompt for vision stage
+            
+        Returns:
+            Final processed text from the two-stage pipeline
+        """
+        image_description = None
+        final_result = None
+        
+        try:
+            logger.info(f"[{loggerName}] {Colors.BLUE}Starting two-stage processing pipeline{Colors.ENDC}")
+            
+            # Stage 1: Get image description from vision model
+            logger.info(f"[{loggerName}] {Colors.YELLOW}Stage 1: Generating image description with {vision_model}{Colors.ENDC}")
+            
+            image_description = self.process_image(
+                model=vision_model,
+                image_tensor=image_tensor,
+                temperature=vision_temperature,
+                top_p=vision_top_p,
+                top_k=vision_top_k,
+                prompt_assistant=vision_prompt_assistant,
+                custom_system_prompt=custom_vision_prompt
+            )
+            
+            if not image_description or image_description.startswith("Error"):
+                logger.error(f"[{loggerName}] {Colors.RED}Failed to generate image description{Colors.ENDC}")
+                return image_description  # Return error message
+            
+            logger.info(f"[{loggerName}] {Colors.GREEN}Image description generated: {image_description[:100]}...{Colors.ENDC}")
+            
+            # Stage 2: Process description with text model
+            logger.info(f"[{loggerName}] {Colors.YELLOW}Stage 2: Processing description with {text_model}{Colors.ENDC}")
+            
+            # Combine description and user instructions into a coherent prompt
+            combined_prompt = f"""Image Description:
+{image_description}
+
+Instructions:
+{user_instructions}
+
+Please process the above image description according to the provided instructions."""
+            
+            logger.info(f"[{loggerName}] {Colors.YELLOW}Combined prompt: {combined_prompt[:200]}...{Colors.ENDC}")
+            
+            final_result = self.process_template(
+                model=text_model,
+                user_prompt=combined_prompt,
+                temperature=text_temperature,
+                presence_penalty=text_presence_penalty,
+                frequency_penalty=text_frequency_penalty,
+                top_p=text_top_p,
+                top_k=text_top_k,
+                prompt_assistant=text_prompt_assistant
+            )
+            
+            if not final_result or final_result.startswith("Error"):
+                logger.error(f"[{loggerName}] {Colors.RED}Failed to process description{Colors.ENDC}")
+                return final_result  # Return error message
+            
+            logger.info(f"[{loggerName}] {Colors.GREEN}Two-stage processing complete{Colors.ENDC}")
+            
+            # Clean up before returning
+            result_to_return = final_result
+            del image_description
+            del final_result
+            
+            return result_to_return
+            
+        except Exception as e:
+            logger.error(f"[{loggerName}] {Colors.RED}Error in two-stage processing: {str(e)}{Colors.ENDC}")
+            return f"Error in two-stage processing: {str(e)}"
+        finally:
+            # Ensure cleanup even on error
+            try:
+                del image_description
+            except (NameError, UnboundLocalError):
+                pass
+            try:
+                del final_result
+            except (NameError, UnboundLocalError):
+                pass
         
 _ollama_client = None
 
