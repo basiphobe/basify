@@ -225,6 +225,11 @@ class DirectoryAutoIterator:
         
         processed_files = set(state.get("processed_files", []))
         
+        # Clean up processed_files: remove files that no longer exist in the current scan
+        # This prevents the count from being out of sync when files are deleted
+        all_images_set = set(all_images)
+        processed_files = processed_files.intersection(all_images_set)
+        
         # Filter out already processed images
         unprocessed_images = [img for img in all_images if img not in processed_files]
         
