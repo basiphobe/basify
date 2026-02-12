@@ -64,8 +64,8 @@ class MaskCombiner:
     def INPUT_TYPES(cls) -> dict[str, Any]:
         return {
             "required": {
-                "masks": ("MASK", {
-                    "tooltip": "Input masks to combine (can be a batch of masks)"
+                "masks": ("*", {
+                    "tooltip": "Input masks to combine (accepts batched tensors, lists, or individual masks)"
                 }),
                 "combine_mode": (["union", "intersection", "average", "add", "multiply"], {
                     "default": "union",
@@ -79,42 +79,71 @@ class MaskCombiner:
             }
         }
     
+    INPUT_IS_LIST = True
+    
     RETURN_TYPES = ("MASK",)
     RETURN_NAMES = ("combined_mask",)
     FUNCTION = "combine_masks"
     CATEGORY = "basify"
     
-    def combine_masks(self, masks: Tensor, combine_mode: str) -> tuple[Tensor]:
+    def combine_masks(self, masks: list[Tensor] | Tensor, combine_mode: list[str] | str) -> tuple[Tensor]:
         """Combine multiple masks into a single mask using the specified mode.
         
         Args:
-            masks: Input mask tensor. Expected shapes:
-                   - [batch, height, width] for batch of masks
-                   - [height, width] for single mask
+            masks: Input masks as a list (when INPUT_IS_LIST=True) or single tensor.
+                   When list: list of mask tensors (each [height, width] or [1, height, width])
+                   When tensor: batched tensor [batch, height, width] or single [height, width]
             combine_mode: Combination method - "union", "intersection", "average", "add", or "multiply"
+                         (will be a list with one item when INPUT_IS_LIST=True)
             
         Returns:
-            tuple: (combined_mask,) containing the combined mask as a tensor
+            tuple: (combined_mask,) containing the combined mask as a batched tensor [1, height, width]
         """
         try:
-            # Ensure masks is a tensor
-            if not isinstance(masks, type(torch.Tensor)):  # type: ignore[attr-defined]
-                masks = torch.tensor(masks)  # type: ignore[attr-defined]
+            # Extract combine_mode from list (INPUT_IS_LIST means it's always a list)
+            if isinstance(combine_mode, list):
+                combine_mode = combine_mode[0]
             
-            # Handle different input shapes
+            # Collect and flatten all mask inputs
+            all_masks = []
+            if isinstance(masks, (list, tuple)):
+                for m in masks:
+                    if isinstance(m, (list, tuple)):
+                        all_masks.extend(m)
+                    else:
+                        all_masks.append(m)
+            else:
+                all_masks = [masks]
+            
+            # Normalize each mask to 2D [H, W] before stacking
+            normalized_masks = []
+            for m in all_masks:
+                if len(m.shape) == 3:
+                    if m.shape[0] == 1:
+                        normalized_masks.append(m.squeeze(0))
+                    else:
+                        # Multiple masks in batch, split them
+                        for i in range(m.shape[0]):
+                            normalized_masks.append(m[i])
+                elif len(m.shape) == 2:
+                    normalized_masks.append(m)
+                else:
+                    raise ValueError(f"Unexpected mask shape: {m.shape}")
+            
+            # Stack into batched tensor [N, H, W]
+            masks = torch.stack(normalized_masks)  # type: ignore[attr-defined]
+            
+            # Handle single or multiple masks
             if len(masks.shape) == 2:
-                # Single mask [height, width] - return as-is
-                logger.info(f"[{loggerName}] Single mask provided, returning as-is")
-                return (masks,)
+                # Single mask - add batch dimension and return
+                return (masks.unsqueeze(0),)
             
             elif len(masks.shape) == 3:
-                # Batch of masks [batch, height, width]
                 batch_size = masks.shape[0]
-                logger.info(f"[{loggerName}] Combining {batch_size} masks using mode: {combine_mode}")
                 
                 if batch_size == 1:
-                    # Only one mask in batch - return it
-                    result = masks[0]
+                    # Only one mask - return with batch dimension
+                    return (masks[0].unsqueeze(0),)
                 else:
                     # Combine masks based on mode
                     if combine_mode == "union":
@@ -143,12 +172,14 @@ class MaskCombiner:
                     else:
                         raise ValueError(f"Unknown combine_mode: {combine_mode}")
                 
+                # Add batch dimension to result
+                output = result.unsqueeze(0)
                 logger.info(
-                    f"[{loggerName}] {Colors.GREEN}Successfully combined {batch_size} masks "
-                    f"({masks.shape[1]}x{masks.shape[2]}) using {combine_mode}{Colors.ENDC}"
+                    f"[{loggerName}] {Colors.GREEN}Combined {batch_size} masks "
+                    f"({masks.shape[1]}x{masks.shape[2]}) using '{combine_mode}'{Colors.ENDC}"
                 )
                 
-                return (result,)
+                return (output,)
             
             else:
                 raise ValueError(

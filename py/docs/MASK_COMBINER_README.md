@@ -1,21 +1,24 @@
 # Mask Combiner Node
 
 ## Overview
-The **Mask Combiner** node provides functionality to merge multiple mask tensors into a single combined mask output in ComfyUI workflows. This node accepts a batch of masks and combines them using various mathematical operations, making it essential for complex masking workflows.
+The **Mask Combiner** node provides functionality to merge multiple mask tensors into a single combined mask output in ComfyUI workflows. This node accepts batches of masks, lists of masks, or individual masks and combines them using various mathematical operations, making it essential for complex masking workflows.
 
 ## Features
 - **Multiple Combination Modes**: Five different methods to combine masks
+- **Flexible Input Handling**: Accepts batched tensors, lists, or individual masks
 - **Batch Processing**: Automatically handles batches of masks
+- **List Processing**: Works with list outputs from nodes like `ImpactMakeAnyList`
 - **Value Safety**: Ensures output values stay in valid mask range [0.0, 1.0]
-- **Standard Format**: Uses ComfyUI's standard MASK tensor format
+- **Standard Format**: Returns ComfyUI's standard MASK tensor format
 
 ## Inputs
 
 ### Required
-- **masks** (`MASK`): Input masks to combine
-  - Can be a batch of masks with shape `[batch, height, width]`
-  - Can be a single mask with shape `[height, width]`
-  - All masks in the batch must have the same dimensions
+- **masks** (`*`): Input masks to combine
+  - Accepts batched tensor with shape `[batch, height, width]`
+  - Accepts list of mask tensors (from nodes like `ImpactMakeAnyList`)
+  - Accepts single mask with shape `[height, width]` or `[1, height, width]`
+  - All masks must have the same dimensions
 
 - **combine_mode** (Dropdown): Method for combining masks
   - Options: `union`, `intersection`, `average`, `add`, `multiply`
@@ -24,7 +27,7 @@ The **Mask Combiner** node provides functionality to merge multiple mask tensors
 
 ## Outputs
 - **combined_mask** (`MASK`): The combined mask tensor
-  - Shape: `[height, width]` (single mask)
+  - Shape: `[1, height, width]` (batched single mask)
   - Values clamped to valid range [0.0, 1.0]
   - Can be used with any node accepting MASK input
 
