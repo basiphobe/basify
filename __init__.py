@@ -53,6 +53,9 @@ from .py.mask_combiner import NODE_DISPLAY_NAME_MAPPINGS as mask_combiner_displa
 from .py.image_selector import NODE_CLASS_MAPPINGS as batch_selector_nodes
 from .py.image_selector import NODE_DISPLAY_NAME_MAPPINGS as batch_selector_display
 
+from .py.batch_append import NODE_CLASS_MAPPINGS as batch_append_nodes
+from .py.batch_append import NODE_DISPLAY_NAME_MAPPINGS as batch_append_display
+
 # Import routes to register web endpoints (no exports needed)
 from .py import routes  # noqa: F401  # type: ignore[unused-ignore]
 
@@ -73,7 +76,8 @@ NODE_CLASS_MAPPINGS: dict[str, type[Any]] = {
     **vae_decode_preview_nodes,
     **lazy_conditional_switch_nodes,
     **mask_combiner_nodes,
-    **batch_selector_nodes
+    **batch_selector_nodes,
+    **batch_append_nodes
 }
 
 NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
@@ -93,7 +97,8 @@ NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
     **vae_decode_preview_display,
     **lazy_conditional_switch_display,
     **mask_combiner_display,
-    **batch_selector_display
+    **batch_selector_display,
+    **batch_append_display
 }
 
 # Add the directory to the web (i.e client, i.e. javascript) extensions

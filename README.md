@@ -155,6 +155,29 @@ Display:
 
 ---
 
+#### **Batch Append**
+Flexible batch accumulation and item appending for building dynamic batches during workflow execution.
+
+**Key Features**:
+- Internal accumulating collection when batch input not connected
+- Appends to external batches when connected
+- Supports any data type (images, latents, tensors, lists, etc.)
+- Smart type detection and automatic collection creation
+- Type change detection with automatic reset
+- Tensor concatenation along batch dimension
+- Stateful operation across executions
+
+**Behavior Modes**:
+- **Accumulation Mode**: Build persistent batch when input not connected
+- **New Collection Mode**: Create fresh collection from None input
+- **Append Mode**: Add item to provided batch
+
+**Use Cases**: Dynamic batch building, image collection, latent accumulation, iterative workflows, queue processing
+
+📖 [**Full Documentation**](py/docs/BATCH_APPEND_README.md)
+
+---
+
 #### **Sound Notifier**
 Plays audio notifications when workflows complete execution.
 
@@ -293,6 +316,7 @@ basify/
 │   ├── metadata_viewer.js
 │   └── save_image.js
 └── py/                                  # Python nodes
+    ├── batch_append.py
     ├── directory_auto_iterator.py
     ├── directory_checkpoint_scanner.py
     ├── latent_generator.py
@@ -304,6 +328,7 @@ basify/
     ├── routes.py
     │
     └── docs/                            # Documentation
+        ├── BATCH_APPEND_README.md
         ├── DIRECTORY_AUTO_ITERATOR_README.md
         ├── DIRECTORY_CHECKPOINT_SCANNER_README.md
         ├── LATENT_GENERATOR_README.md
