@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import Any, TYPE_CHECKING
 
 try:
@@ -43,8 +44,8 @@ class BatchSelector:
     
     Features:
     - Accepts batches of images, masks, latents, or any batch data
-    - Index-based selection with negative indexing support
-    - Supports negative indexing (Python-style: -1 = last, -2 = second-to-last)
+    - Index-based selection with modulo cycling for loop-friendly iteration
+    - UI-based selection modes (first, last, random, middle)
     - Safe bounds checking with helpful error messages
     - Output type automatically matches input type
     """
@@ -56,13 +57,19 @@ class BatchSelector:
                 "batch": (IO.ANY, {
                     "tooltip": "Input batch to select from (IMAGE, MASK, LATENT, or other batch types)"
                 }),
+                "selection_mode": (["first", "last", "random", "middle"], {
+                    "default": "first",
+                    "tooltip": "How to select from batch when index is not connected"
+                }),
+            },
+            "optional": {
                 "index": ("INT", {
                     "default": 0,
                     "min": -10000,
                     "max": 10000,
                     "step": 1,
-                    "tooltip": "Index of the item to select (0-based, supports negative indexing).\n"
-                               "0 = first, -1 = last, -2 = second-to-last, etc."
+                    "tooltip": "Optional index input. When connected, uses modulo to cycle through batch.\n"
+                               "Overrides selection_mode. Safe for loops - never crashes on out of range."
                 }),
             }
         }
@@ -75,14 +82,16 @@ class BatchSelector:
     def select_item(
         self,
         batch: Any,
-        index: int = 0
+        selection_mode: str = "first",
+        index: int | None = None
     ) -> tuple[Any]:
         """Select a specific item from a batch.
         
         Args:
             batch: Input batch - can be IMAGE tensor, MASK tensor, LATENT dict, or any batch type
-            index: Index to select (0-based, supports negative indexing)
-                   0 = first, -1 = last, -2 = second-to-last, etc.
+            selection_mode: How to select when index is not provided ("first", "last", "random", "middle")
+            index: Optional index input. When provided, uses modulo to cycle through batch.
+                   Overrides selection_mode.
             
         Returns:
             tuple: (selected_item,) - same type as the input batch
@@ -114,30 +123,39 @@ class BatchSelector:
             
             batch_size = tensor.shape[0]  # type: ignore[attr-defined]
             
-            # Handle single item case
-            if batch_size == 1:
-                logger.info(f"[{loggerName}] Only one item in batch, returning it")
-                if batch_type == "LATENT":
-                    return (data,)
-                else:
-                    return (tensor,)
+            # Safety check: handle empty batch
+            if batch_size == 0:
+                raise ValueError("Cannot select from an empty batch")
             
-            # Handle negative indexing
-            if index < 0:
-                selected_idx = batch_size + index
+            # Determine selected index
+            if index is not None:
+                # Index provided - use modulo mode for loop-safe cycling
+                selected_idx = int(index) % batch_size
+                logger.info(
+                    f"[{loggerName}] Using index mode: {index} % {batch_size} = {selected_idx}"
+                )
             else:
-                selected_idx = index
-            
-            # Bounds checking
-            if selected_idx < 0 or selected_idx >= batch_size:
-                raise ValueError(
-                    f"Index {index} is out of bounds for batch size {batch_size}. "
-                    f"Valid range: -{batch_size} to {batch_size - 1}"
+                # No index - use selection_mode
+                if selection_mode == "first":
+                    selected_idx = 0
+                elif selection_mode == "last":
+                    selected_idx = batch_size - 1
+                elif selection_mode == "middle":
+                    selected_idx = batch_size // 2
+                elif selection_mode == "random":
+                    selected_idx = random.randint(0, batch_size - 1)
+                else:
+                    # Fallback to first
+                    selected_idx = 0
+                
+                logger.info(
+                    f"[{loggerName}] Using selection_mode '{selection_mode}': "
+                    f"selected index {selected_idx} from batch of {batch_size}"
                 )
             
             logger.info(
-                f"[{loggerName}] Selecting {batch_type} at index {index} "
-                f"(resolved to {selected_idx}) from batch of {batch_size}"
+                f"[{loggerName}] Selecting {batch_type} at index {selected_idx} "
+                f"from batch of {batch_size}"
             )
             
             # Select the item and prepare output based on type

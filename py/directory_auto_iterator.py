@@ -5,6 +5,13 @@ from PIL import Image, ImageOps
 import torch
 import numpy as np
 
+try:
+    from comfy_execution.graph import ExecutionBlocker  # type: ignore[import]
+except Exception:  # pragma: no cover - comfy execution unavailable in static analysis/runtime
+    class ExecutionBlocker:  # minimal fallback for static analysis and tests
+        def __init__(self, value):
+            self.value = value
+
 class DirectoryAutoIterator:
     """
     A ComfyUI node that automatically iterates through all images in a directory.
@@ -183,17 +190,57 @@ class DirectoryAutoIterator:
     
     @classmethod
     def IS_CHANGED(cls, directory_path: str, process_subdirectories: str, reset_on_directory_change: str, reset_progress: str = "false") -> float:
-        """Force re-execution on every run to process the next image."""
-        # This is the key - returning a random value forces ComfyUI to re-execute
+        """Force re-execution when there are unprocessed images, otherwise return consistent value.
+        
+        This prevents infinite loops when iterator is exhausted - returning a consistent value
+        signals to ComfyUI that nothing has changed and execution should not be triggered again.
+        """
         import random
+        
+        # If reset is requested, always trigger re-execution
+        if reset_progress == "true":
+            return random.random()
+        
+        # If directory path is invalid/empty, return consistent value to stop execution
+        if not directory_path or not os.path.exists(directory_path):
+            return 0.0
+        
+        # Check if we're exhausted by examining state
+        temp_instance = cls()
+        state = temp_instance.load_state(directory_path)
+        
+        # If directory path changed and reset_on_directory_change is enabled, trigger re-execution
+        if state.get("directory_path") != directory_path and reset_on_directory_change == "enable":
+            return random.random()
+        
+        # Scan for images
+        if process_subdirectories == "enable":
+            all_images = temp_instance.scan_directory_recursive(directory_path)
+        else:
+            all_images = temp_instance.scan_directory_for_images(directory_path)
+        
+        # Check if there are unprocessed images
+        processed_files = set(state.get("processed_files", []))
+        all_images_set = set(all_images)
+        processed_files = processed_files.intersection(all_images_set)
+        unprocessed_images = [img for img in all_images if img not in processed_files]
+        
+        # If exhausted, return consistent value to prevent re-execution
+        if not unprocessed_images:
+            # Return hash of completed state for deterministic behavior
+            # This signals to ComfyUI that this node will never change again
+            state_hash = hash((directory_path, tuple(sorted(processed_files)), len(all_images)))
+            return float(state_hash)
+        
+        # Otherwise, return random value to trigger processing next image
         return random.random()
     
-    def load_next_image(self, directory_path: str, process_subdirectories: str, reset_on_directory_change: str, reset_progress: str = "false") -> tuple[torch.Tensor | None, torch.Tensor | None, str, str, int, int, bool, str]:
+    def load_next_image(self, directory_path: str, process_subdirectories: str, reset_on_directory_change: str, reset_progress: str = "false") -> tuple[torch.Tensor | None | ExecutionBlocker, torch.Tensor | None | ExecutionBlocker, str | ExecutionBlocker, str | ExecutionBlocker, int, int, bool, str]:
         """Load the next image in the sequence."""
         
         # Validate directory path
         if not directory_path or not os.path.exists(directory_path):
-            return (None, None, "", "", 0, 0, False, "Invalid directory path")
+            return (ExecutionBlocker(None), ExecutionBlocker(None), ExecutionBlocker(None), ExecutionBlocker(None), 0, 0, False, "Invalid directory path")
         
         # Check if reset is requested
         should_reset = reset_progress == "true"
@@ -210,7 +257,7 @@ class DirectoryAutoIterator:
         total_count = len(all_images)
         
         if total_count == 0:
-            return (None, None, "", "", 0, 0, False, "No images found in directory")
+            return (ExecutionBlocker(None), ExecutionBlocker(None), ExecutionBlocker(None), ExecutionBlocker(None), 0, 0, False, "No images found in directory")
         
         # Load current state
         state = self.load_state(directory_path)
@@ -239,7 +286,8 @@ class DirectoryAutoIterator:
             print(f"[DirectoryAutoIterator] {status}")
             state["completed"] = True
             self.save_state(directory_path, state)
-            return (None, None, "", "", len(processed_files), total_count, False, status)
+            # Return ExecutionBlocker for data outputs to halt downstream nodes cleanly
+            return (ExecutionBlocker(None), ExecutionBlocker(None), ExecutionBlocker(None), ExecutionBlocker(None), len(processed_files), total_count, True, status)
         
         # Try to load images until we find one that works
         image: torch.Tensor | None = None
@@ -281,7 +329,8 @@ class DirectoryAutoIterator:
         if image is None:
             status = f"All remaining images failed to load. Processed {len(processed_files)}/{total_count} images."
             print(f"[DirectoryAutoIterator] {status}")
-            return (None, None, "", "", len(processed_files), total_count, False, status)
+            # Return ExecutionBlocker for data outputs to halt downstream nodes cleanly
+            return (ExecutionBlocker(None), ExecutionBlocker(None), ExecutionBlocker(None), ExecutionBlocker(None), len(processed_files), total_count, True, status)
         
         # Successfully loaded an image
         remaining = len(all_images) - len(processed_files)

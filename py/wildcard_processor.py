@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 from typing import Any
 from pathlib import Path
@@ -27,6 +28,9 @@ logger = logging.getLogger(__name__)
 _wildcard_output_cache: dict[str, str] = {}
 _MAX_CACHE_SIZE = 100
 
+# Counter to ensure IS_CHANGED always returns unique values
+_is_changed_counter = 0
+
 class WildcardProcessor:
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -35,9 +39,14 @@ class WildcardProcessor:
                 "text": ("STRING", {"default": "", "multiline": True}),
             },
             "optional": {
+                "clip": ("CLIP", {"tooltip": "Optional CLIP model for text encoding"}),
                 "enable_wildcards": ("BOOLEAN", {"default": True}),
-                "wildcard_directory": ("STRING", {"default": "/llm/models/image/wildcards"}),
-                "force_refresh": ("BOOLEAN", {"default": False})
+                "wildcard_directory": ("STRING", {"default": "/AI/wildcards"}),
+                "force_refresh": ("BOOLEAN", {"default": False}),
+                "iterator_completed": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "When True, stops randomization to prevent infinite loops when iteration is complete"
+                })
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -45,32 +54,42 @@ class WildcardProcessor:
             }
         }
 
-    RETURN_TYPES = ("STRING", "STRING")
-    RETURN_NAMES = ("processed_text", "original_text")
+    RETURN_TYPES = ("STRING", "STRING", "CONDITIONING")
+    RETURN_NAMES = ("processed_text", "original_text", "conditioning")
     OUTPUT_NODE = True
-    DESCRIPTION = "Processes text with wildcards, replacing them with their corresponding values from files in the specified directory."
+    DESCRIPTION = "Processes text with wildcards, replacing them with their corresponding values from files in the specified directory. Optionally encodes with CLIP."
     FUNCTION = "process_text"
     CATEGORY = "utils"
 
     @classmethod
-    def IS_CHANGED(cls, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/llm/models/image/wildcards", force_refresh: bool = False, **kwargs: Any) -> float | str:
+    def IS_CHANGED(cls, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/AI/wildcards", force_refresh: bool = False, iterator_completed: bool = False, **kwargs: Any) -> float | str:
         """
         Tell ComfyUI when to re-execute this node.
-        When force_refresh is True, always return a new value to bypass caching.
+        When wildcards are enabled and iteration is active, return a new value to generate random results.
+        When iteration is complete, return a consistent value to stop re-execution.
         """
-        if force_refresh:
-            # Return current timestamp to force re-execution every time
-            return time.time()
-        # Return a constant when force_refresh is False to allow caching
+        # Only stop randomizing if explicitly told to via iterator_completed input
+        if iterator_completed:
+            logger.info(f"{Colors.BLUE}[BASIFY Wildcards IS_CHANGED]{Colors.ENDC} {Colors.GREEN}STOPPING - iteration complete, returning hash{Colors.ENDC}")
+            return hash(text)
+        
+        if enable_wildcards:
+            # Return current timestamp + counter to force re-execution every time wildcards are enabled
+            # Combined with counter to ensure uniqueness even with rapid successive calls
+            global _is_changed_counter
+            _is_changed_counter += 1
+            unique_value = time.time() + (_is_changed_counter * 0.000001)
+            return unique_value
+        # Return a constant when wildcards are disabled to allow caching
         return ""
 
     def __init__(self):
         self.display_text: str = ""
         self.wildcards_enabled: bool = True
-        self.wildcard_directory: str = "/llm/models/image/wildcards"
+        self.wildcard_directory: str = "/AI/wildcards"
         self.opened_path: str | None = None
 
-    def process_text(self, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/llm/models/image/wildcards", force_refresh: bool = False, prompt: Any = None, unique_id: str | None = None) -> tuple[str, str]:
+    def process_text(self, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/AI/wildcards", force_refresh: bool = False, iterator_completed: bool = False, clip: Any = None, prompt: Any = None, unique_id: str | None = None) -> tuple[str, str, Any]:
         """
         Process the input text and replace wildcards if enabled.
         
@@ -78,11 +97,14 @@ class WildcardProcessor:
             text (str): Input text with potential wildcard tokens
             enable_wildcards (bool): Whether wildcard processing is enabled
             wildcard_directory (str): Directory where wildcard files are stored
+            force_refresh (bool): Force refresh to increase randomness
+            iterator_completed (bool): Whether iteration is complete (stops randomization)
+            clip: Optional CLIP model for text encoding
             prompt: Prompt information (ComfyUI internal)
             unique_id: Unique identifier for the node (ComfyUI internal)
             
         Returns:
-            tuple: Processed text with wildcards replaced
+            tuple: Processed text with wildcards replaced, original text, and conditioning (if CLIP provided)
         """
         self.wildcards_enabled = enable_wildcards
         self.wildcard_directory = wildcard_directory
@@ -103,17 +125,22 @@ class WildcardProcessor:
         if not text:
             logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.YELLOW}No input text provided{Colors.ENDC}")
             self.display_text = ""
-            return ("", "")
+            return ("", "", None)
             
         if not enable_wildcards:
             logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.YELLOW}Wildcards disabled, returning original text{Colors.ENDC}")
             self.display_text = text
-            return (text, text)
+            # Encode with CLIP if provided
+            conditioning = self._encode_with_clip(text, clip) if clip is not None else None
+            return (text, text, conditioning)
             
         try:
-            # Process wildcards in the text with force_refresh for increased randomness
-            # When force_refresh is True, use current timestamp to ensure different results each run
-            refresh_seed = str(time.time()) if force_refresh else None
+            # Process wildcards in the text - always use timestamp for randomness between runs
+            # force_refresh adds extra entropy on top of base randomization
+            refresh_seed = str(time.time())
+            if force_refresh:
+                # Add extra entropy when force_refresh is enabled
+                refresh_seed = f"{refresh_seed}_{random.random()}"
             processed_text: str = process_wildcards_in_text(text, wildcard_directory, refresh_seed)  # type: ignore[misc]
             logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.GREEN}Successfully processed wildcards in text{Colors.ENDC}")
             self.display_text = processed_text  # Store for display
@@ -129,12 +156,37 @@ class WildcardProcessor:
             # Clean up old cache entries if cache is too large
             _cleanup_cache()
             
-            return (processed_text, text)  # type: ignore[return-value]
+            # Encode with CLIP if provided
+            conditioning = self._encode_with_clip(processed_text, clip) if clip is not None else None
+            
+            return (processed_text, text, conditioning)  # type: ignore[return-value]
 
         except Exception as e:
             logger.error(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.RED}Error processing wildcards: {e}{Colors.ENDC}")
             self.display_text = text  # Return original text on error
-            return (text, text)
+            conditioning = self._encode_with_clip(text, clip) if clip is not None else None
+            return (text, text, conditioning)
+
+    def _encode_with_clip(self, text: str, clip: Any) -> Any:
+        """
+        Encode text using CLIP model to produce conditioning.
+        
+        Args:
+            text (str): Text to encode
+            clip: CLIP model instance
+            
+        Returns:
+            Conditioning output for use in diffusion models
+        """
+        try:
+            tokens = clip.tokenize(text)
+            cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+            conditioning = [[cond, {"pooled_output": pooled}]]
+            logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.GREEN}Successfully encoded text with CLIP{Colors.ENDC}")
+            return conditioning
+        except Exception as e:
+            logger.error(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.RED}Error encoding with CLIP: {e}{Colors.ENDC}")
+            return None
 
 def _cleanup_cache() -> None:
     """Clean up old cache entries to prevent unbounded growth."""

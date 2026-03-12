@@ -56,6 +56,12 @@ from .py.image_selector import NODE_DISPLAY_NAME_MAPPINGS as batch_selector_disp
 from .py.batch_append import NODE_CLASS_MAPPINGS as batch_append_nodes
 from .py.batch_append import NODE_DISPLAY_NAME_MAPPINGS as batch_append_display
 
+from .py.crop_from_bboxes import NODE_CLASS_MAPPINGS as crop_from_bboxes_nodes
+from .py.crop_from_bboxes import NODE_DISPLAY_NAME_MAPPINGS as crop_from_bboxes_display
+
+from .py.paste_crops_to_image import NODE_CLASS_MAPPINGS as paste_crops_nodes
+from .py.paste_crops_to_image import NODE_DISPLAY_NAME_MAPPINGS as paste_crops_display
+
 # Import routes to register web endpoints (no exports needed)
 from .py import routes  # noqa: F401  # type: ignore[unused-ignore]
 
@@ -77,7 +83,9 @@ NODE_CLASS_MAPPINGS: dict[str, type[Any]] = {
     **lazy_conditional_switch_nodes,
     **mask_combiner_nodes,
     **batch_selector_nodes,
-    **batch_append_nodes
+    **batch_append_nodes,
+    **crop_from_bboxes_nodes,
+    **paste_crops_nodes
 }
 
 NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
@@ -98,7 +106,9 @@ NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
     **lazy_conditional_switch_display,
     **mask_combiner_display,
     **batch_selector_display,
-    **batch_append_display
+    **batch_append_display,
+    **crop_from_bboxes_display,
+    **paste_crops_display
 }
 
 # Add the directory to the web (i.e client, i.e. javascript) extensions
