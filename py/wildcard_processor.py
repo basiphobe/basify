@@ -112,7 +112,6 @@ class WildcardProcessor:
             tuple: Processed text with wildcards replaced, original text, and conditioning (if CLIP provided)
         """
         # If a prompt file path is provided, attempt to read from it (takes precedence over textarea)
-        original_text = text
         if prompt_file_path and prompt_file_path.strip():
             try:
                 file_path = Path(prompt_file_path.strip())
@@ -123,6 +122,9 @@ class WildcardProcessor:
                     logger.warning(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.YELLOW}Prompt file path '{prompt_file_path}' does not exist or is not a file, using textarea content{Colors.ENDC}")
             except Exception as e:
                 logger.error(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.RED}Error reading prompt file '{prompt_file_path}': {e}, using textarea content{Colors.ENDC}")
+        
+        # Store the original text (after file loading, if applicable) for the return value
+        original_text = text
         
         self.wildcards_enabled = enable_wildcards
         self.wildcard_directory = wildcard_directory
@@ -150,7 +152,7 @@ class WildcardProcessor:
             self.display_text = text
             # Encode with CLIP if provided
             conditioning = self._encode_with_clip(text, clip) if clip is not None else None
-            return (text, text, conditioning)
+            return (text, original_text, conditioning)
             
         try:
             # Process wildcards in the text - always use timestamp for randomness between runs
@@ -177,13 +179,13 @@ class WildcardProcessor:
             # Encode with CLIP if provided
             conditioning = self._encode_with_clip(processed_text, clip) if clip is not None else None
             
-            return (processed_text, text, conditioning)  # type: ignore[return-value]
+            return (processed_text, original_text, conditioning)  # type: ignore[return-value]
 
         except Exception as e:
             logger.error(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.RED}Error processing wildcards: {e}{Colors.ENDC}")
             self.display_text = text  # Return original text on error
             conditioning = self._encode_with_clip(text, clip) if clip is not None else None
-            return (text, text, conditioning)
+            return (text, original_text, conditioning)
 
     def _encode_with_clip(self, text: str, clip: Any) -> Any:
         """
