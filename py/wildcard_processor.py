@@ -39,10 +39,7 @@ class WildcardProcessor:
                 "text": ("STRING", {"default": "", "multiline": True}),
             },
             "optional": {
-                "prompt_file_path": ("STRING", {
-                    "default": "",
-                    "tooltip": "Optional path to a text file. If provided and valid, file contents take precedence over textarea."
-                }),
+                "prompt_file_path": ("STRING", {"default": ""}),
                 "clip": ("CLIP", {"tooltip": "Optional CLIP model for text encoding"}),
                 "enable_wildcards": ("BOOLEAN", {"default": True}),
                 "wildcard_directory": ("STRING", {"default": "/AI/wildcards"}),
@@ -67,10 +64,25 @@ class WildcardProcessor:
 
     @classmethod
     def IS_CHANGED(cls, text: str, prompt_file_path: str = "", enable_wildcards: bool = True, wildcard_directory: str = "/AI/wildcards", force_refresh: bool = False, iterator_completed: bool = False, **kwargs: Any) -> float | str:
-        """Return unique value when wildcards enabled to force re-execution."""
-        if enable_wildcards and not iterator_completed:
-            return time.time()
-        return hash((text, prompt_file_path))
+        """
+        Tell ComfyUI when to re-execute this node.
+        When wildcards are enabled and iteration is active, return a new value to generate random results.
+        When iteration is complete, return a consistent value to stop re-execution.
+        """
+        # Only stop randomizing if explicitly told to via iterator_completed input
+        if iterator_completed:
+            logger.info(f"{Colors.BLUE}[BASIFY Wildcards IS_CHANGED]{Colors.ENDC} {Colors.GREEN}STOPPING - iteration complete, returning hash{Colors.ENDC}")
+            return hash(text)
+        
+        if enable_wildcards:
+            # Return current timestamp + counter to force re-execution every time wildcards are enabled
+            # Combined with counter to ensure uniqueness even with rapid successive calls
+            global _is_changed_counter
+            _is_changed_counter += 1
+            unique_value = time.time() + (_is_changed_counter * 0.000001)
+            return unique_value
+        # Return a constant when wildcards are disabled to allow caching
+        return ""
 
     def __init__(self):
         self.display_text: str = ""
@@ -79,34 +91,91 @@ class WildcardProcessor:
         self.opened_path: str | None = None
 
     def process_text(self, text: str, prompt_file_path: str = "", enable_wildcards: bool = True, wildcard_directory: str = "/AI/wildcards", force_refresh: bool = False, iterator_completed: bool = False, clip: Any = None, prompt: Any = None, unique_id: str | None = None) -> tuple[str, str, Any]:
-        """Process text with wildcards. If file path provided and valid, use file contents. Otherwise use textarea."""
-        # If file path provided and valid, use its contents
+        """
+        Process the input text and replace wildcards if enabled.
+        
+        Args:
+            text (str): Input text with potential wildcard tokens
+            enable_wildcards (bool): Whether wildcard processing is enabled
+            wildcard_directory (str): Directory where wildcard files are stored
+            force_refresh (bool): Force refresh to increase randomness
+            iterator_completed (bool): Whether iteration is complete (stops randomization)
+            clip: Optional CLIP model for text encoding
+            prompt: Prompt information (ComfyUI internal)
+            unique_id: Unique identifier for the node (ComfyUI internal)
+            
+        Returns:
+            tuple: Processed text with wildcards replaced, original text, and conditioning (if CLIP provided)
+        """
+        # If file path provided and valid, use it
         if prompt_file_path and prompt_file_path.strip():
             try:
                 file_path = Path(prompt_file_path.strip())
                 if file_path.exists() and file_path.is_file():
                     text = file_path.read_text(encoding='utf-8')
-            except Exception as e:
-                logger.error(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.RED}Error reading file: {e}{Colors.ENDC}")
+            except Exception:
+                pass
         
-        original_text = text
+        self.wildcards_enabled = enable_wildcards
+        self.wildcard_directory = wildcard_directory
+        
+        # Update the opened_path if the wildcard directory changed or hasn't been set yet
+        if wildcard_directory:
+            try:
+                if wildcard_directory.startswith('.'):
+                    # Handle relative path
+                    comfyui_root = Path(__file__).parent.parent.parent.parent  # Go up to ComfyUI root
+                    abs_path = (comfyui_root / wildcard_directory).resolve()
+                else:
+                    abs_path = Path(wildcard_directory).resolve()
+                self.opened_path = str(abs_path)
+            except Exception as e:
+                logger.warning(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.YELLOW}Error resolving directory path: {e}{Colors.ENDC}")
         
         if not text:
+            logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.YELLOW}No input text provided{Colors.ENDC}")
+            self.display_text = ""
             return ("", "", None)
             
         if not enable_wildcards:
+            logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.YELLOW}Wildcards disabled, returning original text{Colors.ENDC}")
+            self.display_text = text
+            # Encode with CLIP if provided
             conditioning = self._encode_with_clip(text, clip) if clip is not None else None
-            return (text, original_text, conditioning)
+            return (text, text, conditioning)
             
-        # Process wildcards
         try:
-            processed_text: str = process_wildcards_in_text(text, wildcard_directory, str(time.time()))  # type: ignore[misc]
+            # Process wildcards in the text - always use timestamp for randomness between runs
+            # force_refresh adds extra entropy on top of base randomization
+            refresh_seed = str(time.time())
+            if force_refresh:
+                # Add extra entropy when force_refresh is enabled
+                refresh_seed = f"{refresh_seed}_{random.random()}"
+            processed_text: str = process_wildcards_in_text(text, wildcard_directory, refresh_seed)  # type: ignore[misc]
+            logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.GREEN}Successfully processed wildcards in text{Colors.ENDC}")
+            self.display_text = processed_text  # Store for display
+            
+            # Store in global cache with unique_id as key for other modules to access
+            if unique_id:
+                _wildcard_output_cache[unique_id] = processed_text
+                logger.debug(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.GREEN}Cached processed text for node {unique_id}: {processed_text[:100]}...{Colors.ENDC}")
+            
+            # Always store as "latest" for easy access
+            _wildcard_output_cache["latest"] = processed_text
+            
+            # Clean up old cache entries if cache is too large
+            _cleanup_cache()
+            
+            # Encode with CLIP if provided
             conditioning = self._encode_with_clip(processed_text, clip) if clip is not None else None
-            return (processed_text, original_text, conditioning)  # type: ignore[return-value]
+            
+            return (processed_text, text, conditioning)  # type: ignore[return-value]
+
         except Exception as e:
-            logger.error(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.RED}Error: {e}{Colors.ENDC}")
+            logger.error(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.RED}Error processing wildcards: {e}{Colors.ENDC}")
+            self.display_text = text  # Return original text on error
             conditioning = self._encode_with_clip(text, clip) if clip is not None else None
-            return (text, original_text, conditioning)
+            return (text, text, conditioning)
 
     def _encode_with_clip(self, text: str, clip: Any) -> Any:
         """
