@@ -39,6 +39,10 @@ class WildcardProcessor:
                 "text": ("STRING", {"default": "", "multiline": True}),
             },
             "optional": {
+                "prompt_file_path": ("STRING", {
+                    "default": "",
+                    "tooltip": "Optional path to a text file. If provided and valid, file contents take precedence over textarea."
+                }),
                 "clip": ("CLIP", {"tooltip": "Optional CLIP model for text encoding"}),
                 "enable_wildcards": ("BOOLEAN", {"default": True}),
                 "wildcard_directory": ("STRING", {"default": "/AI/wildcards"}),
@@ -62,7 +66,7 @@ class WildcardProcessor:
     CATEGORY = "utils"
 
     @classmethod
-    def IS_CHANGED(cls, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/AI/wildcards", force_refresh: bool = False, iterator_completed: bool = False, **kwargs: Any) -> float | str:
+    def IS_CHANGED(cls, text: str, prompt_file_path: str = "", enable_wildcards: bool = True, wildcard_directory: str = "/AI/wildcards", force_refresh: bool = False, iterator_completed: bool = False, **kwargs: Any) -> float | str:
         """
         Tell ComfyUI when to re-execute this node.
         When wildcards are enabled and iteration is active, return a new value to generate random results.
@@ -89,12 +93,13 @@ class WildcardProcessor:
         self.wildcard_directory: str = "/AI/wildcards"
         self.opened_path: str | None = None
 
-    def process_text(self, text: str, enable_wildcards: bool = True, wildcard_directory: str = "/AI/wildcards", force_refresh: bool = False, iterator_completed: bool = False, clip: Any = None, prompt: Any = None, unique_id: str | None = None) -> tuple[str, str, Any]:
+    def process_text(self, text: str, prompt_file_path: str = "", enable_wildcards: bool = True, wildcard_directory: str = "/AI/wildcards", force_refresh: bool = False, iterator_completed: bool = False, clip: Any = None, prompt: Any = None, unique_id: str | None = None) -> tuple[str, str, Any]:
         """
         Process the input text and replace wildcards if enabled.
         
         Args:
             text (str): Input text with potential wildcard tokens
+            prompt_file_path (str): Optional path to a text file. If provided and valid, takes precedence over text parameter.
             enable_wildcards (bool): Whether wildcard processing is enabled
             wildcard_directory (str): Directory where wildcard files are stored
             force_refresh (bool): Force refresh to increase randomness
@@ -106,6 +111,19 @@ class WildcardProcessor:
         Returns:
             tuple: Processed text with wildcards replaced, original text, and conditioning (if CLIP provided)
         """
+        # If a prompt file path is provided, attempt to read from it (takes precedence over textarea)
+        original_text = text
+        if prompt_file_path and prompt_file_path.strip():
+            try:
+                file_path = Path(prompt_file_path.strip())
+                if file_path.exists() and file_path.is_file():
+                    text = file_path.read_text(encoding='utf-8')
+                    logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.GREEN}Loaded text from file: {file_path}{Colors.ENDC}")
+                else:
+                    logger.warning(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.YELLOW}Prompt file path '{prompt_file_path}' does not exist or is not a file, using textarea content{Colors.ENDC}")
+            except Exception as e:
+                logger.error(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.RED}Error reading prompt file '{prompt_file_path}': {e}, using textarea content{Colors.ENDC}")
+        
         self.wildcards_enabled = enable_wildcards
         self.wildcard_directory = wildcard_directory
         
