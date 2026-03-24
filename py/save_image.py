@@ -12,6 +12,8 @@ from PIL.PngImagePlugin import PngInfo
 import torch
 import json
 import logging
+import comfy.utils
+from tqdm import tqdm
 
 class Colors:
     BLUE   = '\033[94m'
@@ -167,8 +169,11 @@ class SaveImageCustomPath:
             num_images = original_shape[0] if len(original_shape) == 4 else 1
             logger.info(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.GREEN}Number of images in batch: {num_images}{Colors.ENDC}")
             
-            # Process each image in the batch
-            for batch_idx in range(num_images):
+            # Initialize progress bars (UI and console)
+            pbar = comfy.utils.ProgressBar(num_images)
+            
+            # Process each image in the batch with visual progress bar
+            for batch_idx in tqdm(range(num_images), desc="Saving images", unit="img", ncols=100, colour="green"):
                 logger.debug(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.GREEN}Processing batch image {batch_idx + 1}/{num_images}{Colors.ENDC}")
                 
                 try:
@@ -298,6 +303,9 @@ class SaveImageCustomPath:
                                 logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Error saving text file: {str(e)}{Colors.ENDC}")
 
                         saved_paths.append(file_path)
+                        
+                        # Update UI progress bar
+                        pbar.update_absolute(batch_idx + 1, num_images)
 
                 except Exception as e:
                     logger.error(f"{Colors.BLUE}[BASIFY save image]{Colors.ENDC} {Colors.RED}Error saving batch image {batch_idx}: {str(e)}{Colors.ENDC}")

@@ -40,6 +40,9 @@ Thumbs.db
 .checkpoint_selections.json
 py/.directory_states
 
+# Logs
+*.log
+
 # Github
 .github/
 nodes.py
