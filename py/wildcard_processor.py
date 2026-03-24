@@ -75,6 +75,15 @@ class WildcardProcessor:
         # Only stop randomizing if explicitly told to via iterator_completed input
         if iterator_completed:
             logger.info(f"{Colors.BLUE}[BASIFY Wildcards IS_CHANGED]{Colors.ENDC} {Colors.GREEN}STOPPING - iteration complete, returning hash{Colors.ENDC}")
+            # If using a file path, hash the file path + modification time to detect changes
+            if prompt_file_path and prompt_file_path.strip():
+                try:
+                    file_path = Path(prompt_file_path.strip())
+                    if file_path.exists() and file_path.is_file():
+                        mtime = file_path.stat().st_mtime
+                        return hash((prompt_file_path, mtime))
+                except Exception:
+                    pass
             return hash(text)
         
         if enable_wildcards:
