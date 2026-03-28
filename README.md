@@ -92,6 +92,7 @@ Dynamic text generation using file-based wildcard tokens.
 
 **Key Features**:
 - Token replacement from text files (`__token__` → random value)
+- All-contents mode (`__*token__` → all values)
 - Unique selection prevents duplicates within text
 - Enhanced randomness with force_refresh
 - Global caching for multi-node access
@@ -101,10 +102,15 @@ Dynamic text generation using file-based wildcard tokens.
 
 📖 [**Full Documentation**](py/docs/WILDCARD_PROCESSOR_README.md)
 
-**Example**:
+**Examples**:
 ```
-Input:  "A __color__ __animal__ in __location__"
-Output: "A blue cat in ancient forest"
+Standard: "A __color__ __animal__ in __location__"
+Output:   "A blue cat in ancient forest"
+
+All-Contents: "Available colors: __*color__"
+Output:       "Available colors: red
+              blue
+              green"
 ```
 
 ---

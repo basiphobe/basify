@@ -7,6 +7,7 @@ The **Wildcard Processor** is a ComfyUI custom node that enables dynamic text ge
 ## Key Features
 
 - **Dynamic Text Replacement**: Replaces wildcard tokens with random selections from files
+- **All-Contents Mode**: New `__*token__` format includes ALL lines from a file (not just one)
 - **Unique Selection**: Avoids duplicate replacements within a single text
 - **Enhanced Randomness**: Optional force_refresh for increased variation
 - **Global Caching**: Stores processed text for access by other nodes
@@ -57,7 +58,9 @@ The **Wildcard Processor** is a ComfyUI custom node that enables dynamic text ge
 
 ### Token Format
 
-Wildcards are enclosed in double underscores:
+#### Single-Selection Tokens (Standard)
+
+Wildcards are enclosed in double underscores and select ONE random line:
 ```
 __wildcard_name__
 ```
@@ -68,6 +71,64 @@ __color__
 __animal__
 __weather__
 __style/artistic__
+```
+
+#### All-Contents Tokens (New)
+
+Use an asterisk (`*`) prefix to include ALL lines from a wildcard file:
+```
+__*wildcard_name__
+```
+
+**Examples**:
+```
+__*color__
+__*animal__
+__*weather__
+__*style/artistic__
+```
+
+**Behavior Comparison**:
+
+Given a wildcard file `fruit.txt`:
+```
+apple
+pear
+banana
+```
+
+- **Standard token** `__fruit__` → Selects ONE: `"apple"` OR `"pear"` OR `"banana"`
+- **All-contents token** `__*fruit__` → Includes ALL: `"apple\npear\nbanana"`
+
+**Use Cases for All-Contents Tokens**:
+- List all available options in a single output
+- Generate comprehensive prompts with all variations
+- Create reference documents or catalogs
+- Debugging: See all possible values at once
+- Multi-option selection for downstream processing
+
+**Example Usage**:
+
+```
+Input: "Available colors: __*color__"
+
+Output (if color.txt contains red, blue, green):
+"Available colors: red
+blue
+green"
+```
+
+**Mixed Usage**:
+
+Both token types can be used in the same text:
+
+```
+Input: "Selected: __fruit__, All options: __*fruit__"
+
+Possible Output:
+"Selected: apple, All options: apple
+pear
+banana"
 ```
 
 ### Wildcard Files
@@ -221,6 +282,51 @@ A red dog sitting on a blue blanket
 ```
 
 **Note**: Both `__color__` tokens will get different values.
+
+### All-Contents Tokens
+
+**Wildcard File** (`fruit.txt`):
+```
+apple
+pear
+banana
+orange
+```
+
+**Standard Token Input**:
+```
+My favorite fruit is __fruit__
+```
+
+**Standard Token Output** (one random selection):
+```
+My favorite fruit is apple
+```
+
+**All-Contents Token Input**:
+```
+Available fruits:
+__*fruit__
+```
+
+**All-Contents Token Output** (all lines included):
+```
+Available fruits:
+apple
+pear
+banana
+orange
+```
+
+**Mixed Usage**:
+```
+Input: "Today's special: __fruit__. All options: __*fruit__"
+
+Output: "Today's special: banana. All options: apple
+pear
+banana
+orange"
+```
 
 ### Nested Directory Structure
 
@@ -891,6 +997,7 @@ wildcard_directory: /full/path/to/wildcards
 | Feature | Wildcard Processor | Manual Prompts | Dynamic Prompts Extension |
 |---------|-------------------|----------------|---------------------------|
 | Variation | ✅ Automatic | ❌ Manual | ✅ Automatic |
+| All-Contents Mode | ✅ `__*token__` format | ❌ No | ❌ No |
 | File-based | ✅ Yes | ❌ No | ✅ Yes |
 | Duplicate Prevention | ✅ Yes | ⚠️ Manual | ⚠️ Varies |
 | Caching | ✅ Built-in | ❌ No | ⚠️ Limited |
@@ -902,6 +1009,12 @@ wildcard_directory: /full/path/to/wildcards
 
 **Q: Can I use wildcards within wildcard files?**
 A: The current implementation doesn't recursively process wildcards. Process the output again through another Wildcard Processor node for nested behavior.
+
+**Q: What's the difference between `__token__` and `__*token__`?**
+A: Standard `__token__` selects ONE random line from the file. All-contents `__*token__` includes ALL lines from the file (joined with newlines). Use `__*token__` when you need the complete list rather than a single selection.
+
+**Q: Can I use both token formats in the same text?**
+A: Yes! You can mix `__token__` and `__*token__` freely. For example: `"Selected: __fruit__, All available: __*fruit__"` will show both a single selection and the complete list.
 
 **Q: How many wildcards can I use in one text?**
 A: No hard limit, but performance degrades with many tokens (100+). Typical use (5-15 tokens) is very fast.
