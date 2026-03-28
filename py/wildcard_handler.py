@@ -16,7 +16,10 @@ class Colors:
 
 logger = logging.getLogger(__name__)
 
-# Compile regex pattern once at module level for efficiency
+# Compile regex patterns once at module level for efficiency
+# Pattern for all-contents tokens: __*token__
+WILDCARD_ALL_PATTERN = re.compile(r'__\*(.+?)__')
+# Pattern for single-selection tokens: __token__
 WILDCARD_PATTERN = re.compile(r'__(.+?)__')
 
 def get_random_line_from_wildcard(wildcard_name: str, base_dir: str | None = None, force_refresh: str | None = None) -> str:
@@ -237,6 +240,73 @@ def get_unique_replacement_from_wildcard(wildcard_name: str, base_dir: str | Non
         except (NameError, UnboundLocalError):
             pass
 
+def get_all_lines_from_wildcard(wildcard_name: str, base_dir: str | None = None) -> str:
+    """
+    Get all lines from a wildcard file, joined with commas.
+    
+    Args:
+        wildcard_name (str): Name of the wildcard without .txt extension
+        base_dir (str, optional): Base directory for wildcards. Defaults to the root wildcards directory.
+        
+    Returns:
+        str: All lines from the wildcard file joined with commas, or the original wildcard token if error
+    """
+    lines: list[str] | None = None
+    wildcard_path: Path | None = None
+    
+    try:
+        # Default to the root wildcards directory if no base_dir provided
+        if not base_dir:
+            base_dir_path: Path = Path("/AI/wildcards")  # Default wildcards directory
+        else:
+            base_dir_path = Path(base_dir)
+        
+        # DEBUG: Log what we received and resolved
+        logger.debug(f"{Colors.BLUE}[BASIFY Wildcards DEBUG]{Colors.ENDC} [get_all] base_dir param: {base_dir}")
+        logger.debug(f"{Colors.BLUE}[BASIFY Wildcards DEBUG]{Colors.ENDC} [get_all] resolved base_dir_path: {base_dir_path}")
+        
+        # Ensure wildcard_name is clean and has .txt extension
+        wildcard_name = wildcard_name.strip()
+        logger.debug(f"{Colors.BLUE}[BASIFY Wildcards DEBUG]{Colors.ENDC} [get_all] wildcard_name (stripped): {wildcard_name}")
+        
+        if not wildcard_name.endswith('.txt'):
+            wildcard_name = f"{wildcard_name}.txt"
+        
+        logger.debug(f"{Colors.BLUE}[BASIFY Wildcards DEBUG]{Colors.ENDC} [get_all] wildcard_name (with .txt): {wildcard_name}")
+        
+        wildcard_path = base_dir_path / wildcard_name
+        logger.debug(f"{Colors.BLUE}[BASIFY Wildcards DEBUG]{Colors.ENDC} [get_all] final wildcard_path: {wildcard_path}")
+        
+        # Check if file exists
+        if not wildcard_path.exists():
+            logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}Wildcard file not found: {wildcard_path}{Colors.ENDC}")
+            return f"__*{wildcard_name.replace('.txt', '')}__"
+        
+        # Read file content
+        with open(wildcard_path, 'r', encoding='utf-8') as f:
+            lines = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+        
+        if not lines:
+            logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}No valid lines in wildcard file: {wildcard_path}{Colors.ENDC}")
+            return f"__*{wildcard_name.replace('.txt', '')}__"
+        
+        # Join all lines with newlines to preserve original structure
+        all_content = "\n".join(lines)
+            
+        logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Included all from {wildcard_name}: {len(lines)} lines{Colors.ENDC}")
+        
+        return all_content
+        
+    except Exception as e:
+        logger.error(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.RED}Error processing wildcard file {wildcard_path}: {str(e)}{Colors.ENDC}")
+        return f"__*{wildcard_name.replace('.txt', '')}__"
+    finally:
+        # Ensure cleanup even on error - use try/except since del removes from namespace
+        try:
+            del lines
+        except (NameError, UnboundLocalError):
+            pass
+
 def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refresh: str | None = None, max_depth: int = 10) -> str:
     """
     Process all wildcard tokens in a text string, including nested wildcards.
@@ -268,53 +338,79 @@ def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refr
         
         # Continue processing until no wildcards remain or max depth is reached
         while current_depth < max_depth:
-            # Find all wildcard tokens using pre-compiled pattern
+            # First, process all-contents tokens (__*token__) to avoid conflicts
+            all_matches = list(WILDCARD_ALL_PATTERN.finditer(processed_text))
+            
+            if all_matches:
+                if current_depth == 0:
+                    logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(all_matches)} all-contents wildcard token occurrences to process{Colors.ENDC}")
+                else:
+                    logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(all_matches)} nested all-contents wildcard token occurrences at depth {current_depth}{Colors.ENDC}")
+                
+                # Process from the end to avoid position shifts during replacement
+                for match in reversed(all_matches):
+                    token = match.group(1)
+                    start_pos = match.start()
+                    end_pos = match.end()
+                    
+                    # Get all lines from the wildcard file
+                    replacement = get_all_lines_from_wildcard(token, base_dir)
+                    
+                    # Replace this specific occurrence
+                    processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
+            
+            # Then, find all single-selection wildcard tokens using pre-compiled pattern
             matches = list(WILDCARD_PATTERN.finditer(processed_text))
             
-            if not matches:
+            # Filter out all-contents tokens from regular matches (they start with *)
+            matches = [m for m in matches if not m.group(1).startswith('*')]
+            
+            if not matches and not all_matches:
                 # No more wildcards to process
                 if current_depth > 0:
                     logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Completed nested wildcard processing at depth {current_depth}{Colors.ENDC}")
                 return processed_text
             
-            if current_depth == 0:
-                logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(matches)} wildcard token occurrences to process{Colors.ENDC}")
-            else:
-                logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(matches)} nested wildcard token occurrences at depth {current_depth}{Colors.ENDC}")
-            
-            # Track used replacements to avoid duplicates within this iteration
-            used_replacements = set()
-            
-            # Store text before processing to detect if anything changed
-            text_before_processing = processed_text
-            
-            # Process each token occurrence individually for unique replacements
-            # Process from the end to avoid position shifts during replacement
-            for match in reversed(matches):
-                token = match.group(1)
-                start_pos = match.start()
-                end_pos = match.end()
+            if matches:
+                if current_depth == 0:
+                    logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(matches)} wildcard token occurrences to process{Colors.ENDC}")
+                else:
+                    logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(matches)} nested wildcard token occurrences at depth {current_depth}{Colors.ENDC}")
                 
-                # Get unique replacement for each individual occurrence
-                replacement = get_unique_replacement_from_wildcard(token, base_dir, force_refresh, used_replacements)
-                used_replacements.add(replacement)
+                # Track used replacements to avoid duplicates within this iteration
+                used_replacements = set()
                 
-                # Replace this specific occurrence
-                processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
+                # Store text before processing to detect if anything changed
+                text_before_processing = processed_text
+                
+                # Process each token occurrence individually for unique replacements
+                # Process from the end to avoid position shifts during replacement
+                for match in reversed(matches):
+                    token = match.group(1)
+                    start_pos = match.start()
+                    end_pos = match.end()
+                    
+                    # Get unique replacement for each individual occurrence
+                    replacement = get_unique_replacement_from_wildcard(token, base_dir, force_refresh, used_replacements)
+                    used_replacements.add(replacement)
+                    
+                    # Replace this specific occurrence
+                    processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
             
-            # Check if text actually changed after processing
-            if processed_text == text_before_processing:
-                # No changes were made - this means all wildcards returned their original tokens
-                # This could indicate missing files or circular references
-                logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}No changes made during wildcard processing at depth {current_depth} - wildcards may reference missing files or create circular references{Colors.ENDC}")
-                return processed_text
+                # Check if text actually changed after processing
+                if processed_text == text_before_processing:
+                    # No changes were made - this means all wildcards returned their original tokens
+                    # This could indicate missing files or circular references
+                    logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}No changes made during wildcard processing at depth {current_depth} - wildcards may reference missing files or create circular references{Colors.ENDC}")
+                    return processed_text
+                
+                # Clear used_replacements for next iteration
+                used_replacements.clear()
             
-            # Clear used_replacements for next iteration
-            used_replacements.clear()
             current_depth += 1
         
         # If we exit the loop due to max_depth, log a warning
-        if current_depth >= max_depth and WILDCARD_PATTERN.search(processed_text):
+        if current_depth >= max_depth and (WILDCARD_PATTERN.search(processed_text) or WILDCARD_ALL_PATTERN.search(processed_text)):
             logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}Maximum wildcard nesting depth ({max_depth}) reached, some wildcards may remain unprocessed{Colors.ENDC}")
         
         return processed_text
