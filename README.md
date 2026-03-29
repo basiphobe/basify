@@ -200,6 +200,31 @@ Plays audio notifications when workflows complete execution.
 
 ---
 
+#### **Number Randomizer**
+Generates random numbers within a configurable range with visual display.
+
+**Key Features**:
+- Dual output: integer and float values
+- Seeded randomization for reproducibility
+- Adjustable min/max range
+- On-node display widget shows generated values
+- Force re-execution on each workflow run
+
+**Outputs**:
+- `int_value` - Integer value (rounded down from float)
+- `float_value` - Float value with 2 decimal precision
+
+**Use Cases**: Random seed generation, parameter variation, testing workflows, procedural generation
+
+**Example**:
+```
+Range: 0.0 to 100.0
+Seed: 12345
+Output: Int: 42, Float: 42.73
+```
+
+---
+
 #### **Save Image (Enhanced)**
 Advanced image saving with flexible naming, metadata embedding, and wildcard integration.
 

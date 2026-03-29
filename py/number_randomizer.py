@@ -51,7 +51,7 @@ class NumberRandomizer:
     RETURN_NAMES = ("int_value", "float_value")
     FUNCTION = "generate_number"
     CATEGORY = "basify"
-    OUTPUT_NODE = False
+    OUTPUT_NODE = True
 
     @classmethod
     def IS_CHANGED(cls, seed: int, **kwargs: Any) -> float:
@@ -64,7 +64,7 @@ class NumberRandomizer:
         seed: int,
         min_value: float,
         max_value: float
-    ) -> tuple[int, float]:
+    ) -> dict[str, Any]:
         """
         Generate a random number based on the specified parameters.
 
@@ -74,7 +74,7 @@ class NumberRandomizer:
             max_value: Maximum value of range
 
         Returns:
-            Tuple of (int_value, float_value)
+            Dict with ui text for widget display and 2-tuple result for outputs
         """
         try:
             # Validate range
@@ -95,12 +95,16 @@ class NumberRandomizer:
                 f"(seed={seed}, range=[{min_value}, {max_value}]){Colors.ENDC}"
             )
 
-            return (random_int, random_float)
+            # Create display text for widget (not an output!)
+            display_text = f"Int: {random_int}\nFloat: {random_float:.4f}"
+
+            return {"ui": {"text": [display_text]}, "result": (random_int, random_float)}
 
         except Exception as e:
             logger.error(f"[{loggerName}] Error generating number: {e}")
-            # Return safe defaults
-            return (0, 0.0)
+            # Return safe defaults with error display
+            error_text = f"Error: {str(e)}"
+            return {"ui": {"text": [error_text]}, "result": (0, 0.0)}
 
 
 # Node registration
