@@ -200,6 +200,28 @@ Plays audio notifications when workflows complete execution.
 
 ---
 
+#### **Timer Display**
+Displays workflow runtime directly on the node in a large adjustable font.
+
+**Key Features**:
+- Large on-node timer display rendered directly on the node
+- Adjustable `text_size` slider for readability
+- Preserves final runtime after completion for review
+- Optional trigger passthrough for workflow chaining
+- Auto-resizes to fit the current timer text size
+
+**Use Cases**: Runtime monitoring, workflow performance checks, comparing branch durations, verifying end-to-end timing
+
+📖 [**Full Documentation**](py/docs/TIMER_DISPLAY_README.md)
+
+**Example**:
+```
+[Save Image] -> [Basify: Timer Display]
+Display: 00:47.3
+```
+
+---
+
 #### **Number Randomizer**
 Generates random numbers within a configurable range with visual display.
 
@@ -345,7 +367,8 @@ basify/
 │   ├── directory_checkpoint_scanner.js
 │   ├── latent_generator.js
 │   ├── metadata_viewer.js
-│   └── save_image.js
+│   ├── save_image.js
+│   └── timer_display.js
 └── py/                                  # Python nodes
     ├── batch_append.py
     ├── directory_auto_iterator.py
@@ -354,6 +377,7 @@ basify/
     ├── llm_describe.py
     ├── metadata_viewer.py
     ├── save_image.py
+    ├── timer_display.py
     ├── wildcard_processor.py
     ├── wildcard_handler.py
     ├── routes.py
@@ -366,6 +390,7 @@ basify/
         ├── LLM_DESCRIBE_README.md
         ├── METADATA_VIEWER_README.md
         ├── SAVE_IMAGE_README.md
+        ├── TIMER_DISPLAY_README.md
         └── WILDCARD_PROCESSOR_README.md
 ```
 
