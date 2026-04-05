@@ -8,6 +8,7 @@ The **Wildcard Processor** is a ComfyUI custom node that enables dynamic text ge
 
 - **Dynamic Text Replacement**: Replaces wildcard tokens with random selections from files
 - **All-Contents Mode**: New `__*token__` format includes ALL lines from a file (not just one)
+- **Prompt Comment Support**: Strips full-line `//`, `#`, `;` comments and `/* ... */` blocks before expansion
 - **Unique Selection**: Avoids duplicate replacements within a single text
 - **Enhanced Randomness**: Optional force_refresh for increased variation
 - **Global Caching**: Stores processed text for access by other nodes
@@ -57,6 +58,26 @@ The **Wildcard Processor** is a ComfyUI custom node that enables dynamic text ge
 ## Wildcard Syntax
 
 ### Token Format
+
+### Prompt Comments
+
+The input `text` field can include comments for readability. These are removed before wildcard processing:
+
+```
+// single-line comment
+# single-line comment
+; single-line comment
+
+/*
+multi-line comment block
+__wildcards_inside_comments__ are ignored
+*/
+```
+
+**Rules**:
+- Full-line comments are removed when the trimmed line starts with `//`, `#`, or `;`
+- Block comments in `/* ... */` are removed before wildcard tokens are expanded
+- Inline text is preserved; only comment-only lines and block comment sections are stripped
 
 #### Single-Selection Tokens (Standard)
 

@@ -1,5 +1,6 @@
 import logging
 import random
+import re
 import time
 from typing import Any
 from pathlib import Path
@@ -30,6 +31,27 @@ _MAX_CACHE_SIZE = 100
 
 # Counter to ensure IS_CHANGED always returns unique values
 _is_changed_counter = 0
+
+_COMMENT_BLOCK_PATTERN = re.compile(r'/\*.*?\*/', re.DOTALL)
+_LINE_COMMENT_PREFIXES = ('//', '#', ';')
+
+
+def _strip_comments_from_text(text: str) -> str:
+    """Remove comment blocks and full-line comments from prompt text."""
+
+    def preserve_newlines(match: re.Match[str]) -> str:
+        return "\n" * match.group(0).count("\n")
+
+    text_without_blocks = _COMMENT_BLOCK_PATTERN.sub(preserve_newlines, text)
+    cleaned_lines = []
+
+    for line in text_without_blocks.splitlines():
+        stripped_line = line.lstrip()
+        if stripped_line.startswith(_LINE_COMMENT_PREFIXES):
+            continue
+        cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines)
 
 class WildcardProcessor:
     @classmethod
@@ -145,13 +167,15 @@ class WildcardProcessor:
             return (text, text, conditioning)
             
         try:
+            text_to_process = _strip_comments_from_text(text)
+
             # Process wildcards in the text - always use timestamp for randomness between runs
             # force_refresh adds extra entropy on top of base randomization
             refresh_seed = str(time.time())
             if force_refresh:
                 # Add extra entropy when force_refresh is enabled
                 refresh_seed = f"{refresh_seed}_{random.random()}"
-            processed_text: str = process_wildcards_in_text(text, wildcard_directory, refresh_seed)  # type: ignore[misc]
+            processed_text: str = process_wildcards_in_text(text_to_process, wildcard_directory, refresh_seed)  # type: ignore[misc]
             logger.info(f"{Colors.BLUE}[BASIFY Wildcards Node]{Colors.ENDC} {Colors.GREEN}Successfully processed wildcards in text{Colors.ENDC}")
             self.display_text = processed_text  # Store for display
             

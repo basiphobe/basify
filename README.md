@@ -93,6 +93,7 @@ Dynamic text generation using file-based wildcard tokens.
 **Key Features**:
 - Token replacement from text files (`__token__` → random value)
 - All-contents mode (`__*token__` → all values)
+- Comment-aware prompt preprocessing (`//`, `#`, `;`, and `/* ... */` are stripped before expansion)
 - Unique selection prevents duplicates within text
 - Enhanced randomness with force_refresh
 - Global caching for multi-node access
@@ -111,6 +112,19 @@ All-Contents: "Available colors: __*color__"
 Output:       "Available colors: red
               blue
               green"
+
+With Comments:
+"""
+// scene notes
+A __color__ __animal__
+
+/* ignore these ideas
+in __location__
+*/
+# style notes
+near __location__
+"""
+Output: "A blue cat near ancient forest"
 ```
 
 ---
