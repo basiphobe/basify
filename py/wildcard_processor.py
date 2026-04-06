@@ -80,7 +80,7 @@ class WildcardProcessor:
     RETURN_TYPES = ("STRING", "STRING", "CONDITIONING")
     RETURN_NAMES = ("processed_text", "original_text", "conditioning")
     OUTPUT_NODE = True
-    DESCRIPTION = "Processes text with wildcards, replacing them with their corresponding values from files in the specified directory. Optionally encodes with CLIP."
+    DESCRIPTION = "Processes text with wildcard files and inline brace choices, replacing them with resolved values. Optionally encodes with CLIP."
     FUNCTION = "process_text"
     CATEGORY = "utils"
 

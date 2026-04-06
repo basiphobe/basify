@@ -21,6 +21,31 @@ logger = logging.getLogger(__name__)
 WILDCARD_ALL_PATTERN = re.compile(r'__\*(.+?)__')
 # Pattern for single-selection tokens: __token__
 WILDCARD_PATTERN = re.compile(r'__(.+?)__')
+# Pattern for inline choice groups: {option_a|option_b|option_c}
+INLINE_CHOICE_PATTERN = re.compile(r'\{([^{}]+)\}')
+INLINE_CHOICE_DELIMITER_PATTERN = re.compile(r'(?<!\\)\|')
+
+
+def _has_inline_choice_delimiter(choice_block: str) -> bool:
+    """Return True when a brace block contains at least one unescaped choice delimiter."""
+
+    return INLINE_CHOICE_DELIMITER_PATTERN.search(choice_block) is not None
+
+
+def _split_inline_choice_options(choice_block: str) -> list[str]:
+    """Split a brace choice block into trimmed options, honoring escaped delimiters."""
+
+    options = []
+    for option in INLINE_CHOICE_DELIMITER_PATTERN.split(choice_block):
+        cleaned_option = (
+            option.strip()
+            .replace(r'\|', '|')
+            .replace(r'\{', '{')
+            .replace(r'\}', '}')
+        )
+        if cleaned_option:
+            options.append(cleaned_option)
+    return options
 
 def get_random_line_from_wildcard(wildcard_name: str, base_dir: str | None = None, force_refresh: str | None = None) -> str:
     """
@@ -309,18 +334,19 @@ def get_all_lines_from_wildcard(wildcard_name: str, base_dir: str | None = None)
 
 def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refresh: str | None = None, max_depth: int = 10) -> str:
     """
-    Process all wildcard tokens in a text string, including nested wildcards.
+    Process inline choice groups and wildcard tokens in a text string, including nested expansions.
     
     Args:
-        text (str): The text containing wildcard tokens (__token__)
+        text (str): The text containing wildcard tokens (__token__) and/or brace choices ({a|b|c})
         base_dir (str, optional): Base directory for wildcards
         force_refresh (str, optional): Force refresh string to add randomness to selection
         max_depth (int): Maximum recursion depth for nested wildcards (default: 10)
         
     Returns:
-        str: Text with wildcard tokens replaced by random lines, including nested wildcards
+        str: Text with inline choices and wildcard tokens replaced, including nested expansions
     """
     matches: list[Any] | None = None
+    choice_matches: list[Any] | None = None
     used_replacements: set[str] | None = None
     
     # DEBUG: Log what we received
@@ -338,6 +364,8 @@ def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refr
         
         # Continue processing until no wildcards remain or max depth is reached
         while current_depth < max_depth:
+            text_before_iteration = processed_text
+
             # First, process all-contents tokens (__*token__) to avoid conflicts
             all_matches = list(WILDCARD_ALL_PATTERN.finditer(processed_text))
             
@@ -358,14 +386,37 @@ def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refr
                     
                     # Replace this specific occurrence
                     processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
+
+            # Then, resolve inline choice groups so only the selected branch is expanded further
+            choice_matches = [
+                match for match in INLINE_CHOICE_PATTERN.finditer(processed_text)
+                if _has_inline_choice_delimiter(match.group(1))
+            ]
+
+            if choice_matches:
+                if current_depth == 0:
+                    logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(choice_matches)} inline choice group occurrences to process{Colors.ENDC}")
+                else:
+                    logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Found {len(choice_matches)} nested inline choice group occurrences at depth {current_depth}{Colors.ENDC}")
+
+                for match in reversed(choice_matches):
+                    choice_block = match.group(1)
+                    options = _split_inline_choice_options(choice_block)
+                    if len(options) < 2:
+                        continue
+
+                    start_pos = match.start()
+                    end_pos = match.end()
+                    replacement = random.choice(options)
+                    processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
             
-            # Then, find all single-selection wildcard tokens using pre-compiled pattern
+            # Finally, find all single-selection wildcard tokens using pre-compiled pattern
             matches = list(WILDCARD_PATTERN.finditer(processed_text))
             
             # Filter out all-contents tokens from regular matches (they start with *)
             matches = [m for m in matches if not m.group(1).startswith('*')]
             
-            if not matches and not all_matches:
+            if not matches and not all_matches and not choice_matches:
                 # No more wildcards to process
                 if current_depth > 0:
                     logger.info(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.GREEN}Completed nested wildcard processing at depth {current_depth}{Colors.ENDC}")
@@ -380,9 +431,6 @@ def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refr
                 # Track used replacements to avoid duplicates within this iteration
                 used_replacements = set()
                 
-                # Store text before processing to detect if anything changed
-                text_before_processing = processed_text
-                
                 # Process each token occurrence individually for unique replacements
                 # Process from the end to avoid position shifts during replacement
                 for match in reversed(matches):
@@ -396,21 +444,24 @@ def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refr
                     
                     # Replace this specific occurrence
                     processed_text = processed_text[:start_pos] + replacement + processed_text[end_pos:]
-            
-                # Check if text actually changed after processing
-                if processed_text == text_before_processing:
-                    # No changes were made - this means all wildcards returned their original tokens
-                    # This could indicate missing files or circular references
-                    logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}No changes made during wildcard processing at depth {current_depth} - wildcards may reference missing files or create circular references{Colors.ENDC}")
-                    return processed_text
-                
+
                 # Clear used_replacements for next iteration
                 used_replacements.clear()
+
+            if processed_text == text_before_iteration and (all_matches or choice_matches or matches):
+                # No changes were made - this means wildcards returned their original tokens
+                # or choice groups could not be resolved into valid alternatives.
+                logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}No changes made during wildcard processing at depth {current_depth} - wildcards may reference missing files, create circular references, or contain invalid choice syntax{Colors.ENDC}")
+                return processed_text
             
             current_depth += 1
         
         # If we exit the loop due to max_depth, log a warning
-        if current_depth >= max_depth and (WILDCARD_PATTERN.search(processed_text) or WILDCARD_ALL_PATTERN.search(processed_text)):
+        if current_depth >= max_depth and (
+            WILDCARD_PATTERN.search(processed_text)
+            or WILDCARD_ALL_PATTERN.search(processed_text)
+            or INLINE_CHOICE_PATTERN.search(processed_text)
+        ):
             logger.warning(f"{Colors.BLUE}[BASIFY Wildcards]{Colors.ENDC} {Colors.YELLOW}Maximum wildcard nesting depth ({max_depth}) reached, some wildcards may remain unprocessed{Colors.ENDC}")
         
         return processed_text
@@ -418,6 +469,10 @@ def process_wildcards_in_text(text: str, base_dir: str | None = None, force_refr
         # Ensure cleanup even on error - use try/except since del removes from namespace
         try:
             del matches
+        except (NameError, UnboundLocalError):
+            pass
+        try:
+            del choice_matches
         except (NameError, UnboundLocalError):
             pass
         try:

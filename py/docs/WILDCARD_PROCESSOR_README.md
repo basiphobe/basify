@@ -2,11 +2,12 @@
 
 ## Overview
 
-The **Wildcard Processor** is a ComfyUI custom node that enables dynamic text generation using wildcard tokens. Wildcards are placeholders (formatted as `__token__`) that get replaced with random values from text files, allowing for automated variation in prompts, descriptions, and other text-based inputs. The node features intelligent caching, unique selection to avoid duplicates, and enhanced randomness control.
+The **Wildcard Processor** is a ComfyUI custom node that enables dynamic text generation using wildcard tokens and inline choice groups. Wildcards are placeholders (formatted as `__token__`) that get replaced with random values from text files, while brace choices (formatted as `{option_a|option_b|option_c}`) resolve to one random option inline. The node features intelligent caching, unique selection to avoid duplicates, and enhanced randomness control.
 
 ## Key Features
 
 - **Dynamic Text Replacement**: Replaces wildcard tokens with random selections from files
+- **Inline Choice Groups**: Resolves `{option_a|option_b|option_c}` to one random option
 - **All-Contents Mode**: New `__*token__` format includes ALL lines from a file (not just one)
 - **Prompt Comment Support**: Strips full-line `//`, `#`, `;` comments and `/* ... */` blocks before expansion
 - **Unique Selection**: Avoids duplicate replacements within a single text
@@ -92,6 +93,44 @@ __color__
 __animal__
 __weather__
 __style/artistic__
+```
+
+#### Inline Choice Groups
+
+Brace-delimited choice groups select ONE option from the list:
+```
+{red|green|blue}
+```
+
+**Examples**:
+```
+{portrait|landscape|macro}
+{soft lighting|dramatic lighting}
+{__animal__|robot|statue}
+```
+
+**Behavior**:
+- Each brace group resolves to exactly one option per execution
+- Choices are resolved before standard `__token__` wildcard expansion, so a selected option can still contain wildcards
+- Braces without a pipe character are left unchanged
+- Escape a literal pipe with `\|` if it should remain part of an option
+
+**Example Usage**:
+
+```
+Input: "A {red|green|blue} lantern"
+
+Possible Output:
+"A green lantern"
+```
+
+**Mixed Inline Choice + Wildcard Example**:
+
+```
+Input: "A {__color__|golden} dragon in __location__"
+
+Possible Output:
+"A blue dragon in ancient forest"
 ```
 
 #### All-Contents Tokens (New)
