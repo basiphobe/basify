@@ -6,7 +6,7 @@ A comprehensive collection of custom nodes for ComfyUI providing workflow automa
 
 Basify extends ComfyUI with powerful nodes for:
 - **Automated Workflows**: Batch processing and directory iteration
-- **AI Integration**: LLM-powered image description with Ollama
+- **AI Integration**: Universal LLM text processing (Ollama, OpenAI, Anthropic, etc.) and vision-powered image description
 - **Smart Loading**: Intelligent checkpoint scanning with symbolic link support
 - **Dynamic Content**: Wildcard-based text variation
 - **Workflow Management**: Metadata extraction and organization
@@ -48,6 +48,23 @@ Scans directories for model checkpoints with advanced filtering and selection me
 ---
 
 ### 🤖 AI & LLM Integration
+
+#### **LLM Process**
+Universal text processing node supporting any LLM service via a JSON config file.
+
+**Key Features**:
+- Supports Ollama, OpenAI, Anthropic, Groq, LM Studio, and any OpenAI-compatible API
+- Add new services by editing `llm_services.json` — no code changes needed
+- Dynamic model dropdown populated from the service's API
+- Automatic VRAM management for local models (shared GPU with ComfyUI)
+- Strips thinking model output (`<think>` blocks) automatically
+- Resilient to unsupported parameters (retries without them)
+
+**Use Cases**: Prompt generation, scene description, text transformation, creative writing
+
+📖 [**Full Documentation**](py/docs/LLM_NODE_README.md)
+
+---
 
 #### **Describe Image (LLM)**
 Uses Ollama vision models to generate detailed descriptions of images.

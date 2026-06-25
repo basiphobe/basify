@@ -195,7 +195,7 @@ Output: "Stainless steel coffee maker with glass carafe on marble countertop - m
 
 ## Related Nodes
 
-- **Ollama Process**: Single-stage text processing
+- **LLM Process**: Universal text processing (any service)
 - **LLM Describe**: Simple image description (single stage only)
 - **Wildcard Processor**: Process refined output for prompt generation
 - **Display Anything**: View intermediate outputs

@@ -20,8 +20,8 @@ from .py.directory_checkpoint_scanner import NODE_DISPLAY_NAME_MAPPINGS as direc
 from .py.directory_auto_iterator import NODE_CLASS_MAPPINGS as directory_auto_iterator_nodes
 from .py.directory_auto_iterator import NODE_DISPLAY_NAME_MAPPINGS as directory_auto_iterator_display
 
-from .py.ollama_node import NODE_CLASS_MAPPINGS as ollama_nodes
-from .py.ollama_node import NODE_DISPLAY_NAME_MAPPINGS as ollama_display
+from .py.llm_node import NODE_CLASS_MAPPINGS as llm_nodes
+from .py.llm_node import NODE_DISPLAY_NAME_MAPPINGS as llm_display
 
 from .py.sound_notifier import NODE_CLASS_MAPPINGS as sound_notifier_nodes
 from .py.sound_notifier import NODE_DISPLAY_NAME_MAPPINGS as sound_notifier_display
@@ -75,7 +75,7 @@ NODE_CLASS_MAPPINGS: dict[str, type[Any]] = {
     **latent_generator_nodes,
     **directory_scanner_nodes,
     **directory_auto_iterator_nodes,
-    **ollama_nodes,
+    **llm_nodes,
     **sound_notifier_nodes,
     **display_anything_nodes,
     **conditional_validator_nodes,
@@ -99,7 +99,7 @@ NODE_DISPLAY_NAME_MAPPINGS: dict[str, str] = {
     **latent_generator_display,
     **directory_scanner_display,
     **directory_auto_iterator_display,
-    **ollama_display,
+    **llm_display,
     **sound_notifier_display,
     **display_anything_display,
     **conditional_validator_display,

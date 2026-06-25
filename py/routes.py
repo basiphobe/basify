@@ -143,7 +143,44 @@ async def test_sound(request: web.Request) -> web.Response:
         traceback.print_exc()
         return web.json_response({"error": str(e)}, status=500)
 
+async def get_llm_services(request: web.Request) -> web.Response:
+    """API endpoint to get configured LLM service names"""
+    try:
+        from .llm_service_registry import get_service_names
+        services = get_service_names()
+        return web.json_response({"services": services})
+    except Exception as e:
+        logger.error(f"{Colors.BLUE}[BASIFY LLM]{Colors.ENDC} {Colors.RED}Error getting services: {e}{Colors.ENDC}")
+        return web.json_response({"services": [], "error": str(e)}, status=500)
+
+
+async def get_llm_models(request: web.Request) -> web.Response:
+    """API endpoint to get models for a given LLM service"""
+    payload: Any = None
+    try:
+        payload = await request.json()
+        service_name: str = payload.get("service", "")
+
+        if not service_name:
+            return web.json_response({"error": "No service name provided", "models": []}, status=400)
+
+        from .llm_service_registry import get_models
+        models = get_models(service_name)
+        return web.json_response({"models": models})
+
+    except Exception as e:
+        logger.error(f"{Colors.BLUE}[BASIFY LLM]{Colors.ENDC} {Colors.RED}Error getting models: {e}{Colors.ENDC}")
+        return web.json_response({"models": [], "error": str(e)}, status=500)
+    finally:
+        try:
+            del payload
+        except (NameError, UnboundLocalError):
+            pass
+
+
 server.PromptServer.instance.app.add_routes([
     web.post("/basify/scan_directory", scan_directory_for_checkpoints),
     web.post("/basify/test_sound", test_sound),
+    web.get("/basify/llm_services", get_llm_services),
+    web.post("/basify/llm_models", get_llm_models),
 ])
